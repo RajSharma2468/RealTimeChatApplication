@@ -139,3 +139,4 @@ E:\RealTimeChatApplication\backend\ConnectHub.Auth\obj\Debug\net9.0\ref\ConnectH
 E:\RealTimeChatApplication\backend\ConnectHub.Auth\bin\Debug\net9.0\Swashbuckle.AspNetCore.Swagger.dll
 E:\RealTimeChatApplication\backend\ConnectHub.Auth\bin\Debug\net9.0\Swashbuckle.AspNetCore.SwaggerGen.dll
 E:\RealTimeChatApplication\backend\ConnectHub.Auth\bin\Debug\net9.0\Swashbuckle.AspNetCore.SwaggerUI.dll
+E:\RealTimeChatApplication\backend\ConnectHub.Auth\obj\Debug\net9.0\ConnectHub.Auth.sourcelink.json
