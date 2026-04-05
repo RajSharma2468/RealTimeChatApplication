@@ -6,7 +6,6 @@ namespace ConnectHub.Auth.Repositories
 {
     public class UserRepository : IUserRepository
     {
-        // Dependency Injection
         private readonly AppDbContext _context;
         
         public UserRepository(AppDbContext context)
@@ -37,8 +36,13 @@ namespace ConnectHub.Auth.Repositories
                 .FirstOrDefaultAsync(u => u.Username == usernameOrEmail || u.Email == usernameOrEmail);
         }
         
+        /// Search users by keyword - excludes current user
         public async Task<IEnumerable<User>> SearchUsersAsync(string keyword, int currentUserId)
         {
+            // Return empty if keyword is too short
+            if (string.IsNullOrEmpty(keyword) || keyword.Length < 2)
+                return new List<User>();
+            
             return await _context.Users
                 .Where(u => u.Id != currentUserId && 
                        (u.Username.Contains(keyword) || 
