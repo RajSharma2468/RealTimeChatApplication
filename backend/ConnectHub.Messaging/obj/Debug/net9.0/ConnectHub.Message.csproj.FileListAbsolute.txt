@@ -1,9 +1,0 @@
-E:\RealTimeChatApplication\backend\ConnectHub.Message\obj\Debug\net9.0\ConnectHub.Message.csproj.AssemblyReference.cache
-E:\RealTimeChatApplication\backend\ConnectHub.Message\obj\Debug\net9.0\rpswa.dswa.cache.json
-E:\RealTimeChatApplication\backend\ConnectHub.Message\obj\Debug\net9.0\ConnectHub.Message.GeneratedMSBuildEditorConfig.editorconfig
-E:\RealTimeChatApplication\backend\ConnectHub.Message\obj\Debug\net9.0\ConnectHub.Message.AssemblyInfoInputs.cache
-E:\RealTimeChatApplication\backend\ConnectHub.Message\obj\Debug\net9.0\ConnectHub.Message.AssemblyInfo.cs
-E:\RealTimeChatApplication\backend\ConnectHub.Message\obj\Debug\net9.0\ConnectHub.Message.csproj.CoreCompileInputs.cache
-E:\RealTimeChatApplication\backend\ConnectHub.Message\obj\Debug\net9.0\ConnectHub.Message.MvcApplicationPartsAssemblyInfo.cs
-E:\RealTimeChatApplication\backend\ConnectHub.Message\obj\Debug\net9.0\ConnectHub.Message.MvcApplicationPartsAssemblyInfo.cache
-E:\RealTimeChatApplication\backend\ConnectHub.Message\obj\Debug\net9.0\ConnectHub.Message.sourcelink.json
