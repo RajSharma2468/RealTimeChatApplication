@@ -1,0 +1,6 @@
+@ConnectHub.Media_HostAddress = http://localhost:5223
+
+GET {{ConnectHub.Media_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
