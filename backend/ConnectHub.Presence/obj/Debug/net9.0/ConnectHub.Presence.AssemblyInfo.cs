@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ConnectHub.Presence")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8fdef956bd4cec2c8a54d20ef0e434bb1ca9fd78")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e15486d3d0493da5d9998c4eb05bec0694d713c1")]
 [assembly: System.Reflection.AssemblyProductAttribute("ConnectHub.Presence")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ConnectHub.Presence")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
