@@ -1,0 +1,104 @@
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.Authorization;
+using ConnectHub.Presence.Services;
+using ConnectHub.Presence.DTOs;
+
+namespace ConnectHub.Presence.Hubs
+{
+    // SignalR Hub for real-time presence events
+    // WHY: WebSocket connection for instant updates
+    [Authorize]
+    public class PresenceHub : Hub
+    {
+        private readonly IPresenceService _presenceService;
+        
+        public PresenceHub(IPresenceService presenceService)
+        {
+            _presenceService = presenceService;
+        }
+        
+        // Called when client connects - mark user online
+        public override async Task OnConnectedAsync()
+        {
+            var userId = GetUserId();
+            
+            // Register connection
+            _presenceService.UserConnected(userId, Context.ConnectionId);
+            
+            // Tell everyone this user came online
+            await Clients.All.SendAsync("UserOnline", userId);
+            
+            // Send current online users list to new user
+            var onlineUsers = _presenceService.GetOnlineUserIds();
+            await Clients.Caller.SendAsync("OnlineUsersList", onlineUsers);
+            
+            await base.OnConnectedAsync();
+        }
+        
+        // Called when client disconnects - mark user offline
+        public override async Task OnDisconnectedAsync(Exception exception)
+        {
+            var userId = GetUserId();
+            
+            // Remove connection
+            _presenceService.UserDisconnected(userId, Context.ConnectionId);
+            
+            // If no more connections, broadcast offline status
+            if (!_presenceService.IsUserOnline(userId))
+            {
+                await Clients.All.SendAsync("UserOffline", userId);
+            }
+            
+            await base.OnDisconnectedAsync(exception);
+        }
+        
+        // Client sends heartbeat to keep connection alive
+        public async Task SendHeartbeat()
+        {
+            var userId = GetUserId();
+            _presenceService.UpdateHeartbeat(userId, Context.ConnectionId);
+            await Task.CompletedTask;
+        }
+        
+        // Send typing indicator to receiver
+        public async Task SendTypingIndicator(TypingIndicatorDto dto)
+        {
+            dto.SenderId = GetUserId();
+            
+            if (dto.ConversationType == "DIRECT")
+            {
+                // Direct message - send to specific user
+                await Clients.User(dto.ReceiverId.ToString())
+                    .SendAsync("UserTyping", dto);
+            }
+            else if (dto.ConversationType == "ROOM" && dto.RoomId.HasValue)
+            {
+                // Room chat - send to all room members
+                await Clients.Group(dto.RoomId.ToString())
+                    .SendAsync("UserTyping", dto);
+            }
+        }
+        
+        // Mark message as read and notify sender
+        public async Task MarkMessageRead(ReadReceiptDto dto)
+        {
+            dto.ReaderId = GetUserId();
+            dto.ReadAt = DateTime.UtcNow;
+            
+            // Notify the original sender that message was read
+            await Clients.User(dto.SenderId.ToString())
+                .SendAsync("MessageRead", dto);
+        }
+        
+        // Helper: Extract user ID from JWT claims
+        private int GetUserId()
+        {
+            var userIdClaim = Context.UserIdentifier;
+            if (string.IsNullOrEmpty(userIdClaim))
+            {
+                userIdClaim = Context.User?.FindFirst("nameid")?.Value;
+            }
+            return int.Parse(userIdClaim);
+        }
+    }
+}

@@ -1,0 +1,126 @@
+using Moq;
+using NUnit.Framework;
+using Microsoft.AspNetCore.SignalR;
+using System.Security.Claims;
+using ConnectHub.Presence.Hubs;
+using ConnectHub.Presence.Services;
+using ConnectHub.Presence.Tests.Helpers;
+
+namespace ConnectHub.Presence.Tests.UnitTests
+{
+    // Test class for PresenceHub - Tests SignalR hub methods
+    // WHY: Ensure real-time presence events work correctly
+    [TestFixture]
+    public class PresenceHubTests : IDisposable
+    {
+        private Mock<IPresenceService> _mockPresenceService;  // Mock of presence service
+        private Mock<HubCallerContext> _mockContext;          // Mock of hub context (connection info)
+        private PresenceHub _hub;                             // Hub instance being tested
+        private bool _disposed = false;                       // Track disposal state
+        
+        // Setup runs before each test - creates fresh mocks
+        [SetUp]
+        public void Setup()
+        {
+            // Create mock presence service
+            _mockPresenceService = new Mock<IPresenceService>();
+            
+            // Create real hub with mocked service
+            _hub = new PresenceHub(_mockPresenceService.Object);
+            
+            // Mock JWT claims - simulate authenticated user
+            _mockContext = new Mock<HubCallerContext>();
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, TestConstants.USER_ID_1.ToString())
+            };
+            var identity = new ClaimsIdentity(claims);
+            var principal = new ClaimsPrincipal(identity);
+            
+            // Setup mock context to return fake user and connection ID
+            _mockContext.Setup(x => x.User).Returns(principal);
+            _mockContext.Setup(x => x.ConnectionId).Returns(TestConstants.CONNECTION_ID_1);
+            
+            // Assign mock context to hub
+            _hub.Context = _mockContext.Object;
+        }
+        
+        // Cleanup after each test - prevents memory leaks
+        [TearDown]
+        public void TearDown()
+        {
+            Dispose();
+        }
+        
+        // Dispose pattern - properly dispose hub resources
+        public void Dispose()
+        {
+            if (!_disposed)
+            {
+                _hub?.Dispose();      // Dispose the hub
+                _mockContext = null;  // Clear references
+                _mockPresenceService = null;
+                _disposed = true;
+            }
+        }
+        
+    
+        
+        ///OnConnectedAsync - When user connects to SignalR
+       
+        
+        // Verifies that:
+        // 1. UserConnected() is called on presence service
+        // 2. Correct user ID and connection ID are passed
+        // ================================================================
+        [Test]
+        public async Task OnConnectedAsync_ValidUser_RegistersAndBroadcasts()
+        {
+            // Act: Call the hub method (simulates client connecting)
+            await _hub.OnConnectedAsync();
+            
+            // Assert: Verify presence service was called with correct parameters
+            _mockPresenceService.Verify(
+                x => x.UserConnected(TestConstants.USER_ID_1, TestConstants.CONNECTION_ID_1), 
+                Times.Once);
+        }
+        
+        // ================================================================
+        // TEST: OnDisconnectedAsync - When user disconnects from SignalR
+        // ================================================================
+        // Verifies that:
+        // 1. UserDisconnected() is called on presence service
+        // 2. User is properly removed from online list
+        // ================================================================
+        [Test]
+        public async Task OnDisconnectedAsync_ValidUser_UnregistersUser()
+        {
+            // Act: Call the hub method (simulates client disconnecting)
+            await _hub.OnDisconnectedAsync(null);
+            
+            // Assert: Verify presence service was called
+            _mockPresenceService.Verify(
+                x => x.UserDisconnected(TestConstants.USER_ID_1, TestConstants.CONNECTION_ID_1), 
+                Times.Once);
+        }
+        
+        // ================================================================
+        // TEST: SendHeartbeat - Client sends "I'm alive" signal
+        // ================================================================
+        // Verifies that:
+        // 1. Heartbeat updates the last active timestamp
+        // 2. Prevents connection from being marked as stale
+        // ================================================================
+        [Test]
+        public async Task SendHeartbeat_UpdatesHeartbeat()
+        {
+            // Act: Call the heartbeat method
+            await _hub.SendHeartbeat();
+            
+            // Assert: Verify heartbeat update was called
+            _mockPresenceService.Verify(
+                x => x.UpdateHeartbeat(TestConstants.USER_ID_1, TestConstants.CONNECTION_ID_1), 
+                Times.Once);
+        }
+    }
+}
