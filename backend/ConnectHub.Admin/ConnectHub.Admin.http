@@ -1,0 +1,6 @@
+@ConnectHub.Admin_HostAddress = http://localhost:5135
+
+GET {{ConnectHub.Admin_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
