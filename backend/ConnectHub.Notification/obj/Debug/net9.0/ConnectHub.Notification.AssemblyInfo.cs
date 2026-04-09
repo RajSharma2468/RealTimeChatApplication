@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ConnectHub.Notification")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+fb6e5b5d84db98eb62383f7a3c7a9c77407ded8d")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ec159aea0f11cadc711cbc66629d3196fa8946ac")]
 [assembly: System.Reflection.AssemblyProductAttribute("ConnectHub.Notification")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ConnectHub.Notification")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

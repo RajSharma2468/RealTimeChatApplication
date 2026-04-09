@@ -12,5 +12,9 @@ namespace ConnectHub.Notification.Services
         Task<bool> MarkAllAsReadAsync(int userId);
         Task<bool> DeleteNotificationAsync(int notificationId, int userId);
         Task<bool> BroadcastNotificationAsync(int adminUserId, BroadcastNotificationDto dto);
+        
+        // RabbitMQ methods
+        Task PublishNotificationEventAsync(NotificationEventDto eventDto);
+        Task ProcessQueueMessageAsync(string message);
     }
 }

@@ -12,25 +12,22 @@ using ConnectHub.Notification.BackgroundServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to container
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-
-// Add SignalR for real-time notifications
 builder.Services.AddSignalR();
 
-// Add DbContext for PostgreSQL
 builder.Services.AddDbContext<NotificationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Dependency Injection - Register repositories and services
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 
-// Add background service for email cleanup
-builder.Services.AddHostedService<EmailCleanupService>();
+// Add RabbitMQ service as Singleton
+builder.Services.AddSingleton<IRabbitMqService, RabbitMqService>();
 
-// JWT Authentication Configuration
+// Add background consumer
+builder.Services.AddHostedService<RabbitMqConsumerService>();
+
 var jwtKey = builder.Configuration["Jwt:Key"];
 if (string.IsNullOrEmpty(jwtKey))
 {
@@ -54,7 +51,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ClockSkew = TimeSpan.Zero
         };
         
-        // For SignalR, read token from query string (WebSocket doesn't support headers)
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
@@ -72,87 +68,44 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// Swagger Configuration
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "ConnectHub Notification API", Version = "v1" });
-    
-    // Add JWT authentication to Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
         Type = SecuritySchemeType.Http,
         Scheme = "Bearer",
         BearerFormat = "JWT",
-        In = ParameterLocation.Header,
-        Description = "Enter JWT token like: Bearer your-token-here"
+        In = ParameterLocation.Header
     });
-    
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            new string[] {}
-        }
+        { new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } }, new string[] {} }
     });
 });
 
 var app = builder.Build();
 
-// MIDDLEWARE PIPELINE - ORDER MATTERS
-
-// 1. Global Exception Handler - MUST be first
 app.UseMiddleware<ExceptionMiddleware>();
-
-// 2. Request Logging Middleware
 app.UseMiddleware<RequestLoggingMiddleware>();
 
-// 3. Swagger - API documentation (Development only)
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "ConnectHub Notification API v1");
-    });
+    app.UseSwaggerUI();
 }
 
-// 4. HTTPS Redirection
 app.UseHttpsRedirection();
-
-// 5. Authentication - Validates JWT token
 app.UseAuthentication();
-
-// 6. Authorization - Checks user permissions
 app.UseAuthorization();
-
-// 7. Controllers - Maps API endpoints
 app.MapControllers();
-
-// 8. SignalR Hub - Maps real-time notification hub
 app.MapHub<NotificationHub>("/notificationHub");
 
-// DATABASE MIGRATION - Auto apply on startup
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
-    try
-    {
-        dbContext.Database.Migrate();
-        Console.WriteLine("Database migration completed successfully.");
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Database migration failed: {ex.Message}");
-    }
+    dbContext.Database.Migrate();
 }
 
-// 9. Run the application
 app.Run();
