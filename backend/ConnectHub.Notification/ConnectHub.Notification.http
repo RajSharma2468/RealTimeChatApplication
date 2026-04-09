@@ -1,0 +1,6 @@
+@ConnectHub.Notification_HostAddress = http://localhost:5201
+
+GET {{ConnectHub.Notification_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
