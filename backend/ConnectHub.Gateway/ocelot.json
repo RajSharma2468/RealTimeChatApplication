@@ -54,7 +54,7 @@
       "DownstreamHostAndPorts": [
         {
           "Host": "localhost",
-          "Port": 5031
+          "Port": 5032
         }
       ],
       "UpstreamPathTemplate": "/api/presence/{everything}",
@@ -66,7 +66,7 @@
       "DownstreamHostAndPorts": [
         {
           "Host": "localhost",
-          "Port": 5031
+          "Port": 5032
         }
       ],
       "UpstreamPathTemplate": "/presenceHub/{everything}",
@@ -78,7 +78,7 @@
       "DownstreamHostAndPorts": [
         {
           "Host": "localhost",
-          "Port": 5046
+          "Port": 5047
         }
       ],
       "UpstreamPathTemplate": "/api/media/{everything}",
@@ -122,6 +122,8 @@
     }
   ],
   "GlobalConfiguration": {
-    "BaseUrl": "http://localhost:5000"
+    "BaseUrl": "http://localhost:5031"
   }
+
+  
 }

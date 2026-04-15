@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ConnectHub.Gateway")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+40c9d135e6f7f9af1672004ed52c210ef4ea64ab")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+65ed2547e9af65376bbd998ef954b030e6fb09cc")]
 [assembly: System.Reflection.AssemblyProductAttribute("ConnectHub.Gateway")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ConnectHub.Gateway")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
