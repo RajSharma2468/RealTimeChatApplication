@@ -14,8 +14,6 @@ namespace ConnectHub.Auth.Helpers
     
     public class JwtHelper : IJwtHelper
     {
-        // Dependency Injection
-
         private readonly IConfiguration _configuration;
         
         public JwtHelper(IConfiguration configuration)
@@ -38,11 +36,20 @@ namespace ConnectHub.Auth.Helpers
             
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
             
+            // Safely read expiry minutes from configuration with fallback default
+            // Default is 1440 minutes (24 hours)
+            var expiryMinutes = 1440;
+            var expiryStr = _configuration["Jwt:ExpiryInMinutes"];
+            if (!string.IsNullOrEmpty(expiryStr) && double.TryParse(expiryStr, out var minutes))
+            {
+                expiryMinutes = minutes;
+            }
+            
             var token = new JwtSecurityToken(
                 issuer: _configuration["Jwt:Issuer"],
                 audience: _configuration["Jwt:Audience"],
                 claims: claims,
-                expires: DateTime.UtcNow.AddHours(24),
+                expires: DateTime.UtcNow.AddMinutes(expiryMinutes),
                 signingCredentials: credentials
             );
             
