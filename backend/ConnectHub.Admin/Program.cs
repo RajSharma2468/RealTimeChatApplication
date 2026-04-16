@@ -18,12 +18,11 @@ builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnCh
 // ================================================================
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowFrontend", policy =>
+    options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "https://connecthub-frontend.onrender.com")
+        policy.AllowAnyOrigin()
               .AllowAnyMethod()
-              .AllowAnyHeader()
-              .AllowCredentials();
+              .AllowAnyHeader();
     });
 });
 
@@ -82,24 +81,9 @@ builder.Services.AddSwaggerGen(c =>
 var app = builder.Build();
 
 // ================================================================
-// CORS must be first in pipeline
+// Simple CORS - Allow all for production
 // ================================================================
-app.UseCors("AllowFrontend");
-
-// Handle OPTIONS preflight requests
-app.Use(async (context, next) =>
-{
-    if (context.Request.Method == "OPTIONS")
-    {
-        context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
-        context.Response.Headers.Append("Access-Control-Allow-Methods", "*");
-        context.Response.Headers.Append("Access-Control-Allow-Headers", "*");
-        context.Response.StatusCode = 200;
-        await context.Response.CompleteAsync();
-        return;
-    }
-    await next();
-});
+app.UseCors("AllowAll");
 
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
@@ -116,7 +100,7 @@ app.UseAuthorization();
 app.MapControllers();
 
 // ================================================================
-// DISABLE AUTO-MIGRATION (Run manually if needed)
+// DISABLE AUTO-MIGRATION - Prevents startup issues
 // ================================================================
 // using (var scope = app.Services.CreateScope())
 // {
