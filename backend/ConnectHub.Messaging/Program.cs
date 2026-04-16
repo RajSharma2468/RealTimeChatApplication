@@ -6,10 +6,15 @@ using System.Text;
 using ConnectHub.Messaging.Data;
 using ConnectHub.Messaging.Repositories;
 using ConnectHub.Messaging.Services;
-using ConnectHub.Messaging.Hubs;  // ADD THIS
+using ConnectHub.Messaging.Hubs;
 using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ================================================================
+// FIX: Disable file watcher to avoid inotify limit on Render
+// ================================================================
+builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
 
 // ================================================================
 // CORS Configuration
@@ -18,7 +23,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3000")
+        policy.WithOrigins("http://localhost:3000", "https://connecthub-frontend-x4xm.onrender.com")
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials();
@@ -37,9 +42,7 @@ builder.Services.AddScoped<IMessageRepository, MessageRepository>();
 builder.Services.AddScoped<IMessageService, MessageService>();
 builder.Services.AddHttpClient();
 
-// ================================================================
 // ADD SIGNALR - FOR REAL-TIME MESSAGING
-// ================================================================
 builder.Services.AddSignalR();
 
 // JWT Authentication
@@ -109,10 +112,9 @@ app.Use(async (context, next) =>
 {
     if (context.Request.Method == "OPTIONS")
     {
-        context.Response.Headers.Append("Access-Control-Allow-Origin", "http://localhost:3000");
+        context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
         context.Response.Headers.Append("Access-Control-Allow-Methods", "*");
         context.Response.Headers.Append("Access-Control-Allow-Headers", "*");
-        context.Response.Headers.Append("Access-Control-Allow-Credentials", "true");
         context.Response.StatusCode = 200;
         await context.Response.CompleteAsync();
         return;
@@ -131,9 +133,16 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// ================================================================
 // MAP SIGNALR HUBS
-// ================================================================
 app.MapHub<PresenceHub>("/presenceHub");
+
+// ================================================================
+// DISABLE AUTO-MIGRATION (Run manually if needed)
+// ================================================================
+// using (var scope = app.Services.CreateScope())
+// {
+//     var dbContext = scope.ServiceProvider.GetRequiredService<MessageDbContext>();
+//     dbContext.Database.Migrate();
+// }
 
 app.Run();
