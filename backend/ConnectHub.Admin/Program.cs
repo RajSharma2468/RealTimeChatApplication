@@ -8,14 +8,23 @@ using ConnectHub.Admin.Repositories;
 using ConnectHub.Admin.Services;
 using ConnectHub.Admin.Middlewares;
 
-var builder = WebApplication.CreateBuilder(args);
+// Create a custom options object to disable file watching
+var options = new WebApplicationOptions
+{
+    Args = args,
+    EnvironmentName = Environments.Production,
+    WebRootPath = "wwwroot",
+    ApplicationName = typeof(Program).Assembly.FullName
+};
 
+var builder = WebApplication.CreateBuilder(options);
 
+// CRITICAL: Explicitly add configuration without reloadOnChange
+builder.Configuration.Sources.Clear();
 builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
+builder.Configuration.AddEnvironmentVariables();
 
-// ================================================================
-// CORS Configuration
-// ================================================================
+// CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -36,10 +45,7 @@ builder.Services.AddScoped<IAdminRepository, AdminRepository>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 
 var jwtKey = builder.Configuration["Jwt:Key"];
-if (string.IsNullOrEmpty(jwtKey))
-{
-    throw new Exception("Jwt:Key is missing in appsettings.json");
-}
+if (string.IsNullOrEmpty(jwtKey)) throw new Exception("Jwt:Key is missing");
 var key = Encoding.UTF8.GetBytes(jwtKey);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -80,9 +86,6 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// ================================================================
-// Simple CORS - Allow all for production
-// ================================================================
 app.UseCors("AllowAll");
 
 app.UseMiddleware<ExceptionMiddleware>();
@@ -98,14 +101,5 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-
-// ================================================================
-// DISABLE AUTO-MIGRATION - Prevents startup issues
-// ================================================================
-// using (var scope = app.Services.CreateScope())
-// {
-//     var dbContext = scope.ServiceProvider.GetRequiredService<AdminDbContext>();
-//     dbContext.Database.Migrate();
-// }
 
 app.Run();
