@@ -13,12 +13,15 @@ using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
+
+builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
+
 // CORS Configuration
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3000")
+        policy.WithOrigins("http://localhost:3000", "https://connecthub-frontend.onrender.com")
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials();
@@ -128,5 +131,13 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<NotificationHub>("/notificationHub");
 
+// ================================================================
+// DISABLE AUTO-MIGRATION (Run manually on Render shell if needed)
+// ================================================================
+// using (var scope = app.Services.CreateScope())
+// {
+//     var dbContext = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+//     dbContext.Database.Migrate();
+// }
 
 app.Run();
