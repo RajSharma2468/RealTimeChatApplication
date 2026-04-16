@@ -10,6 +10,23 @@ using ConnectHub.Admin.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
+
+builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
+
+// ================================================================
+// CORS Configuration
+// ================================================================
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:3000", "https://connecthub-frontend.onrender.com")
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
+    });
+});
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
@@ -64,6 +81,26 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
+// ================================================================
+// CORS must be first in pipeline
+// ================================================================
+app.UseCors("AllowFrontend");
+
+// Handle OPTIONS preflight requests
+app.Use(async (context, next) =>
+{
+    if (context.Request.Method == "OPTIONS")
+    {
+        context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+        context.Response.Headers.Append("Access-Control-Allow-Methods", "*");
+        context.Response.Headers.Append("Access-Control-Allow-Headers", "*");
+        context.Response.StatusCode = 200;
+        await context.Response.CompleteAsync();
+        return;
+    }
+    await next();
+});
+
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
 
@@ -78,5 +115,13 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
+// ================================================================
+// DISABLE AUTO-MIGRATION (Run manually if needed)
+// ================================================================
+// using (var scope = app.Services.CreateScope())
+// {
+//     var dbContext = scope.ServiceProvider.GetRequiredService<AdminDbContext>();
+//     dbContext.Database.Migrate();
+// }
 
 app.Run();
