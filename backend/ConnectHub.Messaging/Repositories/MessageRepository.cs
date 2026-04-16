@@ -25,7 +25,6 @@ namespace ConnectHub.Messaging.Repositories
             return await _context.Messages.FirstOrDefaultAsync(m => m.Id == id);
         }
         
-        // Get conversation between two users with pagination
         public async Task<IEnumerable<Message>> GetDirectMessagesAsync(int userId1, int userId2, int page, int pageSize)
         {
             int skip = (page - 1) * pageSize;
@@ -61,7 +60,6 @@ namespace ConnectHub.Messaging.Repositories
             return message;
         }
         
-        // Soft delete - hide content but keep record
         public async Task<bool> SoftDeleteAsync(int id)
         {
             var message = await GetByIdAsync(id);
@@ -73,7 +71,6 @@ namespace ConnectHub.Messaging.Repositories
             return true;
         }
         
-        // Search messages by keyword
         public async Task<IEnumerable<Message>> SearchMessagesAsync(int userId, string keyword, int? roomId = null)
         {
             var query = _context.Messages
@@ -92,6 +89,15 @@ namespace ConnectHub.Messaging.Repositories
         {
             return await _context.Messages
                 .CountAsync(m => m.ReceiverId == userId && !m.IsRead);
+        }
+        
+        // ================================================================
+        // ADD THIS METHOD
+        // ================================================================
+        public async Task<int> GetUnreadCountFromUserAsync(int userId, int fromUserId)
+        {
+            return await _context.Messages
+                .CountAsync(m => m.ReceiverId == userId && m.SenderId == fromUserId && !m.IsRead && !m.IsDeleted);
         }
         
         public async Task<bool> MarkAsReadAsync(int messageId, int userId)
@@ -128,7 +134,6 @@ namespace ConnectHub.Messaging.Repositories
             return true;
         }
         
-        // Get latest message from each conversation for sidebar
         public async Task<IEnumerable<Message>> GetRecentChatsAsync(int userId)
         {
             var directMessages = await _context.Messages

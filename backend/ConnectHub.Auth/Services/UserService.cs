@@ -17,6 +17,9 @@ namespace ConnectHub.Auth.Services
             _jwtHelper = jwtHelper;
         }
         
+        // ================================================================
+        // REGISTER
+        // ================================================================
         public async Task<UserResponseDto> RegisterAsync(RegisterDto registerDto)
         {
             // Check if username already exists
@@ -43,6 +46,39 @@ namespace ConnectHub.Auth.Services
             return MapToResponseDto(user);
         }
         
+        // ================================================================
+        // REGISTER GOOGLE USER - Create or get existing user from Google
+        // ================================================================
+        public async Task<UserResponseDto> RegisterGoogleUserAsync(RegisterDto registerDto, string googleId)
+        {
+            // Check if user already exists by email
+            var existingUser = await _userRepository.GetByEmailAsync(registerDto.Email);
+            
+            if (existingUser != null)
+            {
+                return MapToResponseDto(existingUser);
+            }
+            
+            // Create new user with Google data
+            var user = new User
+            {
+                Username = registerDto.Username,
+                DisplayName = registerDto.DisplayName,
+                Email = registerDto.Email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(registerDto.Password),
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true,
+                GoogleId = googleId
+            };
+            
+            await _userRepository.CreateAsync(user);
+            
+            return MapToResponseDto(user);
+        }
+        
+        // ================================================================
+        // LOGIN
+        // ================================================================
         public async Task<LoginResponseDto> LoginAsync(LoginDto loginDto)
         {
             // Find user by username or email
@@ -75,6 +111,9 @@ namespace ConnectHub.Auth.Services
             };
         }
         
+        // ================================================================
+        // GET PROFILE
+        // ================================================================
         public async Task<UserResponseDto> GetProfileAsync(int userId)
         {
             var user = await _userRepository.GetByIdAsync(userId);
@@ -85,6 +124,35 @@ namespace ConnectHub.Auth.Services
             return MapToResponseDto(user);
         }
         
+        // ================================================================
+        // GET USER BY ID (For Room Service)
+        // ================================================================
+        public async Task<UserResponseDto?> GetUserByIdAsync(int userId)
+        {
+            var user = await _userRepository.GetByIdAsync(userId);
+            
+            if (user == null)
+                return null;
+            
+            return MapToResponseDto(user);
+        }
+        
+        // ================================================================
+        // GET USER BY EMAIL (For Google Login)
+        // ================================================================
+        public async Task<UserResponseDto?> GetUserByEmailAsync(string email)
+        {
+            var user = await _userRepository.GetByEmailAsync(email);
+            
+            if (user == null)
+                return null;
+            
+            return MapToResponseDto(user);
+        }
+        
+        // ================================================================
+        // UPDATE PROFILE
+        // ================================================================
         public async Task<UserResponseDto> UpdateProfileAsync(int userId, UpdateProfileDto updateDto)
         {
             var user = await _userRepository.GetByIdAsync(userId);
@@ -107,6 +175,9 @@ namespace ConnectHub.Auth.Services
             return MapToResponseDto(user);
         }
         
+        // ================================================================
+        // SEARCH USERS
+        // ================================================================
         public async Task<IEnumerable<SearchUserDto>> SearchUsersAsync(string keyword, int currentUserId)
         {
             var users = await _userRepository.SearchUsersAsync(keyword, currentUserId);
@@ -121,6 +192,9 @@ namespace ConnectHub.Auth.Services
             });
         }
         
+        // ================================================================
+        // LOGOUT
+        // ================================================================
         public async Task<bool> LogoutAsync(int userId)
         {
             // For JWT, logout is client-side
@@ -134,6 +208,9 @@ namespace ConnectHub.Auth.Services
             return true;
         }
         
+        // ================================================================
+        // MAP TO RESPONSE DTO
+        // ================================================================
         private UserResponseDto MapToResponseDto(User user)
         {
             return new UserResponseDto

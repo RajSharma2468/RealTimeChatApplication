@@ -10,6 +10,20 @@ using ConnectHub.Auth.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ================================================================
+// CORS Configuration - ADD THIS
+// ================================================================
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:3000")
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
+    });
+});
+
 // Add services to container
 builder.Services.AddControllers();
 
@@ -94,7 +108,28 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Configure middleware pipeline (ORDER MATTERS!)
+// ================================================================
+// OPTIONS HANDLER - MUST BE FIRST
+// ================================================================
+app.Use(async (context, next) =>
+{
+    if (context.Request.Method == "OPTIONS")
+    {
+        context.Response.StatusCode = 200;
+        context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+        context.Response.Headers.Append("Access-Control-Allow-Methods", "*");
+        context.Response.Headers.Append("Access-Control-Allow-Headers", "*");
+        await context.Response.CompleteAsync();
+        return;
+    }
+    await next();
+});
+
+// ================================================================
+// Use CORS - ADD THIS
+// ================================================================
+app.UseCors("AllowFrontend");
+
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
 

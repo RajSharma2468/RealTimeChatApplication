@@ -6,26 +6,33 @@ using System.Text;
 using ConnectHub.Room.Data;
 using ConnectHub.Room.Repositories;
 using ConnectHub.Room.Services;
-using ConnectHub.Room.Middlewares;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to container
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:3000")
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
+    });
+});
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// Add DbContext with PostgreSQL
 builder.Services.AddDbContext<RoomDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Dependency Injection - Register Repositories
 builder.Services.AddScoped<IRoomRepository, RoomRepository>();
-
-// Dependency Injection - Register Services
 builder.Services.AddScoped<IRoomService, RoomService>();
+builder.Services.AddHttpClient();
 
-// JWT Authentication Configuration
 var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrEmpty(jwtKey)) throw new Exception("Jwt:Key is missing");
 var key = Encoding.UTF8.GetBytes(jwtKey);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -41,94 +48,44 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidateAudience = true,
             ValidAudience = builder.Configuration["Jwt:Audience"],
-            ClockSkew = TimeSpan.Zero
+            ClockSkew = TimeSpan.Zero,
+            NameClaimType = ClaimTypes.NameIdentifier
         };
     });
 
 builder.Services.AddAuthorization();
 
-// Swagger Configuration for API Documentation
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "ConnectHub Room API", Version = "v1" });
-    
-    // Add JWT Authentication to Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
         Type = SecuritySchemeType.Http,
         Scheme = "Bearer",
         BearerFormat = "JWT",
-        In = ParameterLocation.Header,
-        Description = "Enter JWT token like: Bearer your-token-here"
+        In = ParameterLocation.Header
     });
-    
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            new string[] {}
-        }
+        { new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } }, new string[] {} }
     });
 });
 
 var app = builder.Build();
 
-// ==========================================
-// MIDDLEWARE PIPELINE - ORDER MATTERS!
-// ==========================================
+app.UseCors("AllowFrontend");
 
-// 1. Global Exception Handling - Must be FIRST
-// Catches all unhandled exceptions from subsequent middlewares
-app.UseMiddleware<ExceptionMiddleware>();
-
-// 2. Request Logging - Logs every request and response
-app.UseMiddleware<RequestLoggingMiddleware>();
-
-// 3. Swagger - API documentation (Development only)
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "ConnectHub Room API v1");
-    });
+    app.UseSwaggerUI();
 }
 
-// 4. HTTPS Redirection - Enforces secure connection
 app.UseHttpsRedirection();
-
-// 5. Authentication - Validates JWT token
 app.UseAuthentication();
-
-// 6. Authorization - Checks user permissions
 app.UseAuthorization();
-
-// 7. Controllers - Maps API endpoints
 app.MapControllers();
 
-
-// DATABASE MIGRATION - Auto apply on startup
-
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<RoomDbContext>();
-    try
-    {
-        dbContext.Database.Migrate();
-        Console.WriteLine("Database migration completed successfully.");
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Database migration failed: {ex.Message}");
-    }
-}
 
 app.Run();

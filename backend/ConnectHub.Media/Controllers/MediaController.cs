@@ -24,7 +24,6 @@ namespace ConnectHub.Media.Controllers
         }
         
         // POST: api/media/upload
-        // Note: For Swagger, use form-data with key "file"
         [HttpPost("upload")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> UploadFile(IFormFile file, int? messageId = null, int? roomId = null)
@@ -103,14 +102,19 @@ namespace ConnectHub.Media.Controllers
             }
         }
         
-        // GET: api/media/download/{id}
+        // ================================================================
+        // GET: api/media/download/{id} - PUBLIC ACCESS (No Auth Required)
+        // ================================================================
         [HttpGet("download/{id}")]
+        [AllowAnonymous]  // ← ADD THIS LINE - Makes download public
         public async Task<IActionResult> DownloadFile(int id)
         {
             try
             {
-                var userId = GetCurrentUserId();
-                var file = await _mediaService.GetFileByIdAsync(id, userId);
+                var file = await _mediaService.GetFileByIdForDownloadAsync(id);
+                
+                if (file == null)
+                    return NotFound(new { success = false, message = "File not found" });
                 
                 var physicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", file.FileUrl.TrimStart('/'));
                 if (!System.IO.File.Exists(physicalPath))
@@ -122,6 +126,9 @@ namespace ConnectHub.Media.Controllers
                     await stream.CopyToAsync(memory);
                 }
                 memory.Position = 0;
+                
+                // Add CORS header for direct access
+                Response.Headers.Add("Access-Control-Allow-Origin", "http://localhost:3000");
                 
                 return File(memory, file.ContentType, file.FileName);
             }

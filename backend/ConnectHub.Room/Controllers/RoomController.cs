@@ -8,12 +8,11 @@ namespace ConnectHub.Room.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]  // All endpoints require JWT authentication
+    [Authorize]
     public class RoomController : ControllerBase
     {
         private readonly IRoomService _roomService;
         
-        // Dependency Injection
         public RoomController(IRoomService roomService)
         {
             _roomService = roomService;
@@ -22,7 +21,10 @@ namespace ConnectHub.Room.Controllers
         // Helper: Get current user ID from JWT token
         private int GetCurrentUserId()
         {
-            return int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim))
+                throw new Exception("User not authenticated");
+            return int.Parse(userIdClaim);
         }
         
         // POST: api/room/create
@@ -82,7 +84,7 @@ namespace ConnectHub.Room.Controllers
             try
             {
                 var userId = GetCurrentUserId();
-                var result = await _roomService.JoinRoomAsync(roomId, userId);
+                await _roomService.JoinRoomAsync(roomId, userId);
                 return Ok(new { success = true, message = "Joined room successfully" });
             }
             catch (Exception ex)
@@ -98,8 +100,27 @@ namespace ConnectHub.Room.Controllers
             try
             {
                 var userId = GetCurrentUserId();
-                var result = await _roomService.LeaveRoomAsync(roomId, userId);
+                await _roomService.LeaveRoomAsync(roomId, userId);
                 return Ok(new { success = true, message = "Left room successfully" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
+        }
+        
+        // ================================================================
+        // GET: api/room/{roomId}/members - Get room members with real names
+        // ================================================================
+        [HttpGet("{roomId}/members")]
+        public async Task<IActionResult> GetRoomMembers(int roomId)
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                var token = Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
+                var members = await _roomService.GetRoomMembersAsync(roomId, userId, token);
+                return Ok(new { success = true, data = members });
             }
             catch (Exception ex)
             {
@@ -114,8 +135,28 @@ namespace ConnectHub.Room.Controllers
             try
             {
                 var userId = GetCurrentUserId();
-                var result = await _roomService.UpdateMemberRoleAsync(userId, dto);
+                await _roomService.UpdateMemberRoleAsync(userId, dto);
                 return Ok(new { success = true, message = "Member role updated" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
+        }
+        
+        // DELETE: api/room/{roomId}/member/{userId} - Remove member from room
+        [HttpDelete("{roomId}/member/{userId}")]
+        public async Task<IActionResult> RemoveMember(int roomId, int userId)
+        {
+            try
+            {
+                var currentUserId = GetCurrentUserId();
+                var result = await _roomService.RemoveMemberAsync(roomId, userId, currentUserId);
+                
+                if (result)
+                    return Ok(new { success = true, message = "Member removed successfully" });
+                else
+                    return BadRequest(new { success = false, message = "Failed to remove member" });
             }
             catch (Exception ex)
             {
@@ -130,7 +171,7 @@ namespace ConnectHub.Room.Controllers
             try
             {
                 var userId = GetCurrentUserId();
-                var result = await _roomService.DeleteRoomAsync(roomId, userId);
+                await _roomService.DeleteRoomAsync(roomId, userId);
                 return Ok(new { success = true, message = "Room deleted successfully" });
             }
             catch (Exception ex)

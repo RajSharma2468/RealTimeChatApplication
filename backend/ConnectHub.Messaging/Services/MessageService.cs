@@ -1,29 +1,78 @@
 using ConnectHub.Messaging.DTOs;
 using ConnectHub.Messaging.Models;
 using ConnectHub.Messaging.Repositories;
+using System.Text.Json;
 
 namespace ConnectHub.Messaging.Services
 {
     public class MessageService : IMessageService
     {
         private readonly IMessageRepository _messageRepository;
+        private readonly IHttpClientFactory _httpClientFactory;
         
-        public MessageService(IMessageRepository messageRepository)
+        public MessageService(IMessageRepository messageRepository, IHttpClientFactory httpClientFactory)
         {
             _messageRepository = messageRepository;
+            _httpClientFactory = httpClientFactory;
         }
         
-        // Send a new direct message
-        public async Task<MessageResponseDto> SendDirectMessageAsync(int senderId, SendMessageDto dto)
+        // ================================================================
+        // HELPER: Get real user name from Auth Service
+        // ================================================================
+        private async Task<string> GetUserNameFromAuth(int userId, string token = null)
         {
+            try
+            {
+                using var httpClient = _httpClientFactory.CreateClient();
+                
+                if (!string.IsNullOrEmpty(token))
+                {
+                    httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
+                }
+                
+                var response = await httpClient.GetAsync($"http://localhost:5046/api/Auth/{userId}");
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    var userData = JsonSerializer.Deserialize<AuthUserResponse>(json, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                    
+                    if (userData?.Success == true && userData.Data != null)
+                    {
+                        return userData.Data.DisplayName ?? userData.Data.Username ?? $"User_{userId}";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to fetch user {userId}: {ex.Message}");
+            }
+            return $"User_{userId}";
+        }
+        
+        // ================================================================
+        // SEND DIRECT MESSAGE
+        // ================================================================
+        public async Task<MessageResponseDto> SendDirectMessageAsync(int senderId, SendMessageDto dto, string senderName = null)
+        {
+            if (string.IsNullOrEmpty(senderName))
+            {
+                senderName = await GetUserNameFromAuth(senderId);
+            }
+            
             var message = new Message
             {
                 SenderId = senderId,
+                SenderName = senderName,
                 ReceiverId = dto.ReceiverId,
                 Content = dto.Content,
                 SentAt = DateTime.UtcNow,
                 IsRead = false,
                 IsDeleted = false,
+                IsDeletedForSender = false,
+                IsDeletedForReceiver = false,
                 IsEdited = false,
                 MessageType = "TEXT"
             };
@@ -32,20 +81,65 @@ namespace ConnectHub.Messaging.Services
             return MapToResponseDto(created);
         }
         
-        // Get conversation history between two users
+        // ================================================================
+        // SEND ROOM MESSAGE
+        // ================================================================
+        public async Task<MessageResponseDto> SendRoomMessageAsync(int senderId, SendRoomMessageDto dto, string senderName = null)
+        {
+            if (string.IsNullOrEmpty(senderName))
+            {
+                senderName = await GetUserNameFromAuth(senderId);
+            }
+            
+            var message = new Message
+            {
+                SenderId = senderId,
+                SenderName = senderName,
+                RoomId = dto.RoomId,
+                Content = dto.Content,
+                SentAt = DateTime.UtcNow,
+                IsRead = false,
+                IsDeleted = false,
+                IsDeletedForSender = false,
+                IsDeletedForReceiver = false,
+                IsEdited = false,
+                MessageType = "TEXT"
+            };
+            
+            var created = await _messageRepository.CreateAsync(message);
+            return MapToResponseDto(created);
+        }
+        
+        // ================================================================
+        // GET DIRECT MESSAGES
+        // ================================================================
         public async Task<IEnumerable<MessageResponseDto>> GetDirectMessagesAsync(int userId1, int userId2, int page, int pageSize)
         {
             var messages = await _messageRepository.GetDirectMessagesAsync(userId1, userId2, page, pageSize);
-            return messages.Select(MapToResponseDto);
+            
+            var filteredMessages = messages.Where(m => 
+                !(m.IsDeletedForSender && m.SenderId == userId1) &&
+                !(m.IsDeletedForReceiver && m.ReceiverId == userId1) &&
+                !(m.IsDeletedForSender && m.SenderId == userId2) &&
+                !(m.IsDeletedForReceiver && m.ReceiverId == userId2)
+            );
+            
+            return filteredMessages.Select(MapToResponseDto);
         }
         
+        // ================================================================
+        // GET ROOM MESSAGES
+        // ================================================================
         public async Task<IEnumerable<MessageResponseDto>> GetRoomMessagesAsync(int roomId, int page, int pageSize)
         {
             var messages = await _messageRepository.GetRoomMessagesAsync(roomId, page, pageSize);
-            return messages.Select(MapToResponseDto);
+            var filteredMessages = messages.Where(m => !m.IsDeleted);
+            return filteredMessages.Select(MapToResponseDto);
         }
         
-        // Edit message - only sender can edit, only if not deleted
+        // ================================================================
+        // EDIT MESSAGE
+        // ================================================================
         public async Task<MessageResponseDto> EditMessageAsync(int userId, EditMessageDto dto)
         {
             var message = await _messageRepository.GetByIdAsync(dto.MessageId);
@@ -67,21 +161,57 @@ namespace ConnectHub.Messaging.Services
             return MapToResponseDto(updated);
         }
         
-        // Soft delete message - only sender can delete
-        public async Task<bool> DeleteMessageAsync(int userId, int messageId)
+        // ================================================================
+        // DELETE MESSAGE
+        // ================================================================
+        public async Task<bool> DeleteMessageAsync(int userId, DeleteMessageDto dto)
         {
-            var message = await _messageRepository.GetByIdAsync(messageId);
+            Console.WriteLine($"DeleteMessageAsync: userId={userId}, messageId={dto.MessageId}, deleteType={dto.DeleteType}");
+            
+            var message = await _messageRepository.GetByIdAsync(dto.MessageId);
             
             if (message == null)
                 throw new Exception("Message not found");
             
-            if (message.SenderId != userId)
-                throw new Exception("You can only delete your own messages");
+            bool isSender = (message.SenderId == userId);
+            bool isReceiver = (message.ReceiverId == userId);
             
-            return await _messageRepository.SoftDeleteAsync(messageId);
+            if (dto.DeleteType == "FOR_EVERYONE")
+            {
+                if (!isSender)
+                    throw new Exception("Only the sender can delete this message for everyone");
+                
+                message.IsDeleted = true;
+                message.Content = "[Message deleted]";
+                await _messageRepository.UpdateAsync(message);
+                Console.WriteLine($"Message {dto.MessageId} deleted for everyone");
+            }
+            else // FOR_ME
+            {
+                if (isSender)
+                {
+                    message.IsDeletedForSender = true;
+                    Console.WriteLine($"Message {dto.MessageId} deleted for sender {userId}");
+                }
+                else if (isReceiver)
+                {
+                    message.IsDeletedForReceiver = true;
+                    Console.WriteLine($"Message {dto.MessageId} deleted for receiver {userId}");
+                }
+                else
+                {
+                    throw new Exception("You are not a participant of this message");
+                }
+                
+                await _messageRepository.UpdateAsync(message);
+            }
+            
+            return true;
         }
         
-        // Search messages by keyword
+        // ================================================================
+        // SEARCH MESSAGES
+        // ================================================================
         public async Task<IEnumerable<SearchMessageDto>> SearchMessagesAsync(int userId, string keyword, int? roomId = null)
         {
             var messages = await _messageRepository.SearchMessagesAsync(userId, keyword, roomId);
@@ -91,41 +221,112 @@ namespace ConnectHub.Messaging.Services
                 Id = m.Id,
                 Content = m.Content,
                 SenderId = m.SenderId,
-                SenderName = $"User_{m.SenderId}",
+                SenderName = m.SenderName ?? $"User_{m.SenderId}",
                 SentAt = m.SentAt,
                 ConversationWith = m.RoomId.HasValue ? $"Room_{m.RoomId}" : $"User_{(m.SenderId == userId ? m.ReceiverId : m.SenderId).ToString()}"
             });
         }
         
+        // ================================================================
+        // GET UNREAD COUNT
+        // ================================================================
         public async Task<int> GetUnreadCountAsync(int userId)
         {
             return await _messageRepository.GetUnreadCountAsync(userId);
         }
         
+        // ================================================================
+        // MARK AS READ
+        // ================================================================
         public async Task<bool> MarkAsReadAsync(int userId, int messageId)
         {
             return await _messageRepository.MarkAsReadAsync(messageId, userId);
         }
         
+        // ================================================================
+        // MARK ALL AS READ
+        // ================================================================
         public async Task<bool> MarkAllAsReadAsync(int userId, int? senderId = null)
         {
             return await _messageRepository.MarkAllAsReadAsync(userId, senderId);
         }
         
-        public async Task<IEnumerable<MessageResponseDto>> GetRecentChatsAsync(int userId)
+        // ================================================================
+        // GET RECENT CHATS - WITH TOKEN SUPPORT
+        // ================================================================
+        public async Task<IEnumerable<RecentChatDto>> GetRecentChatsAsync(int userId, string token = null)
         {
             var messages = await _messageRepository.GetRecentChatsAsync(userId);
-            return messages.Select(MapToResponseDto);
+            var result = new List<RecentChatDto>();
+            
+            using var httpClient = _httpClientFactory.CreateClient();
+            
+            // Add token to headers if provided
+            if (!string.IsNullOrEmpty(token))
+            {
+                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
+            }
+            
+            foreach (var msg in messages)
+            {
+                int otherUserId = msg.SenderId == userId ? (msg.ReceiverId ?? 0) : msg.SenderId;
+                if (otherUserId == 0) continue;
+                
+                string username = $"user_{otherUserId}";
+                string displayName = $"User {otherUserId}";
+                string? avatarUrl = null;
+                
+                try
+                {
+                    var response = await httpClient.GetAsync($"http://localhost:5046/api/Auth/{otherUserId}");
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var json = await response.Content.ReadAsStringAsync();
+                        var userData = JsonSerializer.Deserialize<AuthUserResponse>(json, new JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        });
+                        
+                        if (userData?.Success == true && userData.Data != null)
+                        {
+                            username = userData.Data.Username ?? $"user_{otherUserId}";
+                            displayName = userData.Data.DisplayName ?? userData.Data.Username ?? $"User {otherUserId}";
+                            avatarUrl = userData.Data.AvatarUrl;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to fetch user {otherUserId}: {ex.Message}");
+                }
+                
+                int unreadCount = await _messageRepository.GetUnreadCountFromUserAsync(userId, otherUserId);
+                
+                result.Add(new RecentChatDto
+                {
+                    UserId = otherUserId,
+                    Username = username,
+                    DisplayName = displayName,
+                    AvatarUrl = avatarUrl,
+                    LastMessage = msg.IsDeleted ? "[Message deleted]" : (msg.Content?.Length > 50 ? msg.Content.Substring(0, 50) + "..." : msg.Content ?? ""),
+                    LastMessageTime = msg.SentAt,
+                    UnreadCount = unreadCount
+                });
+            }
+            
+            return result.OrderByDescending(x => x.LastMessageTime);
         }
         
-        // Map Entity to DTO (hide sensitive data)
+        // ================================================================
+        // MAP ENTITY TO DTO
+        // ================================================================
         private MessageResponseDto MapToResponseDto(Message message)
         {
             return new MessageResponseDto
             {
                 Id = message.Id,
                 SenderId = message.SenderId,
-                SenderName = $"User_{message.SenderId}",
+                SenderName = message.SenderName ?? $"User_{message.SenderId}",
                 ReceiverId = message.ReceiverId,
                 ReceiverName = message.ReceiverId.HasValue ? $"User_{message.ReceiverId}" : null,
                 RoomId = message.RoomId,
@@ -140,5 +341,23 @@ namespace ConnectHub.Messaging.Services
                 MessageType = message.MessageType ?? "TEXT"
             };
         }
+    }
+    
+    // ================================================================
+    // AUTH SERVICE RESPONSE DTO
+    // ================================================================
+    public class AuthUserResponse
+    {
+        public bool Success { get; set; }
+        public AuthUserData Data { get; set; }
+    }
+    
+    public class AuthUserData
+    {
+        public int Id { get; set; }
+        public string Username { get; set; }
+        public string DisplayName { get; set; }  
+        public string Email { get; set; }
+        public string? AvatarUrl { get; set; }
     }
 }

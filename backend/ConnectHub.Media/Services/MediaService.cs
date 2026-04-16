@@ -15,7 +15,9 @@ namespace ConnectHub.Media.Services
             _environment = environment;
         }
         
-        // Upload file to server storage
+        // ================================================================
+        // UPLOAD FILE - Save file to disk and database
+        // ================================================================
         public async Task<UploadFileDto> UploadFileAsync(int userId, IFormFile file, int? messageId = null, int? roomId = null)
         {
             if (file == null || file.Length == 0)
@@ -51,7 +53,7 @@ namespace ConnectHub.Media.Services
                 MessageId = messageId,
                 RoomId = roomId,
                 UploadedAt = DateTime.UtcNow,
-                ExpiresAt = DateTime.UtcNow.AddDays(30)  // Expires in 30 days
+                ExpiresAt = DateTime.UtcNow.AddDays(30)
             };
             
             var saved = await _mediaRepository.CreateAsync(mediaFile);
@@ -67,7 +69,9 @@ namespace ConnectHub.Media.Services
             };
         }
         
-        // Get file by ID
+        // ================================================================
+        // GET FILE BY ID - Requires authentication
+        // ================================================================
         public async Task<MediaResponseDto> GetFileByIdAsync(int fileId, int userId)
         {
             var file = await _mediaRepository.GetByIdAsync(fileId);
@@ -77,28 +81,48 @@ namespace ConnectHub.Media.Services
             return MapToResponseDto(file);
         }
         
-        // Get all files for a message
+        // ================================================================
+        // GET FILE BY ID FOR DOWNLOAD - Public access (no auth required)
+        // ================================================================
+        public async Task<MediaResponseDto> GetFileByIdForDownloadAsync(int fileId)
+        {
+            var file = await _mediaRepository.GetByIdAsync(fileId);
+            if (file == null)
+                throw new Exception("File not found");
+            
+            return MapToResponseDto(file);
+        }
+        
+        // ================================================================
+        // GET FILES BY MESSAGE
+        // ================================================================
         public async Task<IEnumerable<MediaResponseDto>> GetFilesByMessageAsync(int messageId, int userId)
         {
             var files = await _mediaRepository.GetByMessageIdAsync(messageId);
             return files.Select(MapToResponseDto);
         }
         
-        // Get all files for a room
+        // ================================================================
+        // GET FILES BY ROOM
+        // ================================================================
         public async Task<IEnumerable<MediaResponseDto>> GetFilesByRoomAsync(int roomId, int userId)
         {
             var files = await _mediaRepository.GetByRoomIdAsync(roomId);
             return files.Select(MapToResponseDto);
         }
         
-        // Get files uploaded by current user
+        // ================================================================
+        // GET MY FILES - Files uploaded by current user
+        // ================================================================
         public async Task<IEnumerable<MediaResponseDto>> GetMyFilesAsync(int userId)
         {
             var files = await _mediaRepository.GetByUserAsync(userId);
             return files.Select(MapToResponseDto);
         }
         
-        // Delete file (only by uploader)
+        // ================================================================
+        // DELETE FILE - Only uploader can delete
+        // ================================================================
         public async Task<bool> DeleteFileAsync(int fileId, int userId)
         {
             var file = await _mediaRepository.GetByIdAsync(fileId);
@@ -117,7 +141,9 @@ namespace ConnectHub.Media.Services
             return await _mediaRepository.DeleteAsync(fileId);
         }
         
-        // Background job: Clean up expired files
+        // ================================================================
+        // CLEANUP EXPIRED FILES - Background job
+        // ================================================================
         public async Task<bool> CleanupExpiredFilesAsync()
         {
             var expiredFiles = await _mediaRepository.GetExpiredFilesAsync();
@@ -133,6 +159,9 @@ namespace ConnectHub.Media.Services
             return await _mediaRepository.DeleteExpiredFilesAsync();
         }
         
+        // ================================================================
+        // MAP ENTITY TO DTO
+        // ================================================================
         private MediaResponseDto MapToResponseDto(MediaFile file)
         {
             return new MediaResponseDto

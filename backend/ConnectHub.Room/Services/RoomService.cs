@@ -1,27 +1,29 @@
 using ConnectHub.Room.DTOs;
 using ConnectHub.Room.Models;
 using ConnectHub.Room.Repositories;
+using System.Text.Json;
 
 namespace ConnectHub.Room.Services
 {
     public class RoomService : IRoomService
     {
         private readonly IRoomRepository _roomRepository;
+        private readonly IHttpClientFactory _httpClientFactory;
         
-        // Dependency Injection: Repository injected
-        public RoomService(IRoomRepository roomRepository)
+        public RoomService(IRoomRepository roomRepository, IHttpClientFactory httpClientFactory)
         {
             _roomRepository = roomRepository;
+            _httpClientFactory = httpClientFactory;
         }
         
-        // Create a new room - User becomes ADMIN automatically
+        // ================================================================
+        // CREATE ROOM
+        // ================================================================
         public async Task<RoomResponseDto> CreateRoomAsync(int userId, CreateRoomDto dto)
         {
-            // Validate room name
             if (string.IsNullOrWhiteSpace(dto.RoomName))
                 throw new Exception("Room name is required");
             
-            // Create room entity
             var room = new ChatRoom
             {
                 RoomName = dto.RoomName,
@@ -32,10 +34,8 @@ namespace ConnectHub.Room.Services
                 IsActive = true
             };
             
-            // Save room to database
             var createdRoom = await _roomRepository.CreateRoomAsync(room);
             
-            // Add creator as ADMIN member
             var member = new RoomMember
             {
                 RoomId = createdRoom.Id,
@@ -49,7 +49,9 @@ namespace ConnectHub.Room.Services
             return await MapToResponseDto(createdRoom, userId);
         }
         
-        // Get room by ID with member info
+        // ================================================================
+        // GET ROOM BY ID
+        // ================================================================
         public async Task<RoomResponseDto> GetRoomByIdAsync(int roomId, int currentUserId)
         {
             var room = await _roomRepository.GetRoomByIdAsync(roomId);
@@ -59,7 +61,9 @@ namespace ConnectHub.Room.Services
             return await MapToResponseDto(room, currentUserId);
         }
         
-        // Get all public rooms
+        // ================================================================
+        // GET PUBLIC ROOMS
+        // ================================================================
         public async Task<IEnumerable<RoomListDto>> GetPublicRoomsAsync(int currentUserId)
         {
             var rooms = await _roomRepository.GetPublicRoomsAsync();
@@ -84,7 +88,9 @@ namespace ConnectHub.Room.Services
             return result;
         }
         
-        // Get rooms where current user is a member
+        // ================================================================
+        // GET MY ROOMS
+        // ================================================================
         public async Task<IEnumerable<RoomListDto>> GetMyRoomsAsync(int userId)
         {
             var rooms = await _roomRepository.GetRoomsByUserIdAsync(userId);
@@ -110,10 +116,11 @@ namespace ConnectHub.Room.Services
             return result;
         }
         
-        // Join a public room
+        // ================================================================
+        // JOIN ROOM
+        // ================================================================
         public async Task<bool> JoinRoomAsync(int roomId, int userId)
         {
-            // Check if room exists and is public
             var room = await _roomRepository.GetRoomByIdAsync(roomId);
             if (room == null)
                 throw new Exception("Room not found");
@@ -121,17 +128,27 @@ namespace ConnectHub.Room.Services
             if (room.RoomType != "PUBLIC")
                 throw new Exception("Cannot join private room");
             
-            // Check if already a member
-            var isMember = await _roomRepository.IsUserInRoomAsync(roomId, userId);
-            if (isMember)
-                throw new Exception("Already a member of this room");
+            var existingMember = await _roomRepository.GetMemberAsync(roomId, userId);
             
-            // Check member limit
+            if (existingMember != null)
+            {
+                if (existingMember.IsActive)
+                {
+                    throw new Exception("You are already an active member of this room");
+                }
+                else
+                {
+                    existingMember.IsActive = true;
+                    existingMember.JoinedAt = DateTime.UtcNow;
+                    await _roomRepository.UpdateMemberAsync(existingMember);
+                    return true;
+                }
+            }
+            
             var memberCount = await _roomRepository.GetMemberCountAsync(roomId);
             if (memberCount >= room.MaxMembers)
                 throw new Exception("Room is full");
             
-            // Add member
             var member = new RoomMember
             {
                 RoomId = roomId,
@@ -145,43 +162,60 @@ namespace ConnectHub.Room.Services
             return true;
         }
         
-        // Leave a room
+        // ================================================================
+        // LEAVE ROOM
+        // ================================================================
         public async Task<bool> LeaveRoomAsync(int roomId, int userId)
         {
-            // Check if member exists
             var isMember = await _roomRepository.IsUserInRoomAsync(roomId, userId);
             if (!isMember)
                 throw new Exception("You are not a member of this room");
             
-            // Get member to check if ADMIN (creator cannot leave? optional)
-            var member = await _roomRepository.GetMemberAsync(roomId, userId);
-            if (member != null && member.Role == "ADMIN")
-            {
-                // Optional: Prevent admin from leaving or transfer ownership
-                // For now, allow leaving
-            }
-            
             return await _roomRepository.RemoveMemberAsync(roomId, userId);
         }
         
-        // Update member role - Only ADMIN can do this
+        // ================================================================
+        // REMOVE MEMBER
+        // ================================================================
+        public async Task<bool> RemoveMemberAsync(int roomId, int userIdToRemove, int currentUserId)
+        {
+            var isAdmin = await IsUserAdminAsync(roomId, currentUserId);
+            if (!isAdmin)
+                throw new Exception("Only room admin can remove members");
+            
+            if (userIdToRemove == currentUserId)
+                throw new Exception("Use 'Leave Room' to remove yourself");
+            
+            var isMember = await _roomRepository.IsUserInRoomAsync(roomId, userIdToRemove);
+            if (!isMember)
+                throw new Exception("User is not a member of this room");
+            
+            var room = await _roomRepository.GetRoomByIdAsync(roomId);
+            if (room != null && room.CreatedBy == userIdToRemove)
+                throw new Exception("Cannot remove the room creator");
+            
+            return await _roomRepository.RemoveMemberAsync(roomId, userIdToRemove);
+        }
+        
+        // ================================================================
+        // UPDATE MEMBER ROLE
+        // ================================================================
         public async Task<bool> UpdateMemberRoleAsync(int adminUserId, UpdateMemberRoleDto dto)
         {
-            // Verify admin is actually ADMIN of this room
             var isAdmin = await IsUserAdminAsync(dto.RoomId, adminUserId);
             if (!isAdmin)
                 throw new Exception("Only room admin can update member roles");
             
-            // Cannot change role of another admin? (optional)
             var targetMember = await _roomRepository.GetMemberAsync(dto.RoomId, dto.UserId);
             if (targetMember == null)
                 throw new Exception("User is not a member of this room");
             
-            // Update role
             return await _roomRepository.UpdateMemberRoleAsync(dto.RoomId, dto.UserId, dto.NewRole);
         }
         
-        // Delete room - Only creator or admin can delete
+        // ================================================================
+        // DELETE ROOM
+        // ================================================================
         public async Task<bool> DeleteRoomAsync(int roomId, int userId)
         {
             var room = await _roomRepository.GetRoomByIdAsync(roomId);
@@ -198,25 +232,140 @@ namespace ConnectHub.Room.Services
             return await _roomRepository.DeleteRoomAsync(roomId);
         }
         
-        // Check if user is admin of a room
+        // ================================================================
+        // CHECK IF USER IS ADMIN
+        // ================================================================
         public async Task<bool> IsUserAdminAsync(int roomId, int userId)
         {
             var member = await _roomRepository.GetMemberAsync(roomId, userId);
             return member != null && member.Role == "ADMIN";
         }
         
-        // Helper: Get user role in room
+        // ================================================================
+        // CHECK IF USER IS IN ROOM
+        // ================================================================
+        public async Task<bool> IsUserInRoomAsync(int roomId, int userId)
+        {
+            return await _roomRepository.IsUserInRoomAsync(roomId, userId);
+        }
+        
+        // ================================================================
+        // GET MEMBER
+        // ================================================================
+        public async Task<RoomMember?> GetMemberAsync(int roomId, int userId)
+        {
+            return await _roomRepository.GetMemberAsync(roomId, userId);
+        }
+        
+        // ================================================================
+        // GET ROOM MEMBERS - WITH REAL USER NAMES
+        // ================================================================
+        public async Task<IEnumerable<RoomMemberDto>> GetRoomMembersAsync(int roomId, int currentUserId, string token)
+        {
+            Console.WriteLine($"GetRoomMembersAsync: roomId={roomId}, currentUserId={currentUserId}");
+            
+            var isMember = await _roomRepository.IsUserInRoomAsync(roomId, currentUserId);
+            if (!isMember)
+                throw new Exception("You are not a member of this room");
+            
+            var members = await _roomRepository.GetRoomMembersAsync(roomId);
+            var result = new List<RoomMemberDto>();
+            
+            using var httpClient = _httpClientFactory.CreateClient();
+            
+            // Add authorization header with token
+            if (!string.IsNullOrEmpty(token))
+            {
+                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
+            }
+            
+            foreach (var member in members)
+            {
+                string userName = $"User_{member.UserId}";
+                
+                try
+                {
+                    Console.WriteLine($"Fetching user {member.UserId} from Auth Service");
+                    var response = await httpClient.GetAsync($"http://localhost:5046/api/auth/{member.UserId}");
+                    
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var json = await response.Content.ReadAsStringAsync();
+                        var userData = JsonSerializer.Deserialize<AuthUserResponse>(json, new JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        });
+                        
+                        if (userData?.Success == true && userData.Data != null)
+                        {
+                            userName = userData.Data.displayName ?? userData.Data.Username ?? $"User_{member.UserId}";
+                            Console.WriteLine($"Found name: {userName}");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"HTTP Error: {response.StatusCode} for user {member.UserId}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to fetch user {member.UserId}: {ex.Message}");
+                }
+                
+                result.Add(new RoomMemberDto
+                {
+                    UserId = member.UserId,
+                    UserName = userName,
+                    Role = member.Role,
+                    JoinedAt = member.JoinedAt
+                });
+            }
+            
+            return result;
+        }
+        
+        // ================================================================
+        // GET USER ROLE
+        // ================================================================
         private async Task<string> GetUserRoleAsync(int roomId, int userId)
         {
             var member = await _roomRepository.GetMemberAsync(roomId, userId);
             return member?.Role ?? "NONE";
         }
         
-        // Helper: Map ChatRoom entity to Response DTO
+        // ================================================================
+        // MAP TO RESPONSE DTO
+        // ================================================================
         private async Task<RoomResponseDto> MapToResponseDto(ChatRoom room, int currentUserId)
         {
             var memberCount = await _roomRepository.GetMemberCountAsync(room.Id);
             var userRole = await GetUserRoleAsync(room.Id, currentUserId);
+            
+            // Get creator name from Auth Service
+            string creatorName = $"User_{room.CreatedBy}";
+            
+            try
+            {
+                using var httpClient = _httpClientFactory.CreateClient();
+                var response = await httpClient.GetAsync($"http://localhost:5046/api/auth/{room.CreatedBy}");
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    var userData = JsonSerializer.Deserialize<AuthUserResponse>(json, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                    
+                    if (userData?.Success == true && userData.Data != null)
+                    {
+                        creatorName = userData.Data.displayName ?? userData.Data.Username ?? creatorName;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to fetch creator {room.CreatedBy}: {ex.Message}");
+            }
             
             return new RoomResponseDto
             {
@@ -226,11 +375,28 @@ namespace ConnectHub.Room.Services
                 RoomType = room.RoomType,
                 AvatarUrl = room.AvatarUrl,
                 CreatedBy = room.CreatedBy,
-                CreatorName = $"User_{room.CreatedBy}",  // Will be enhanced with Auth service
+                CreatorName = creatorName,
                 CreatedAt = room.CreatedAt,
                 MemberCount = memberCount,
                 UserRole = userRole
             };
         }
+    }
+    
+    // ================================================================
+    // AUTH SERVICE RESPONSE DTO
+    // ================================================================
+    public class AuthUserResponse
+    {
+        public bool Success { get; set; }
+        public AuthUserData Data { get; set; }
+    }
+    
+    public class AuthUserData
+    {
+        public int Id { get; set; }
+        public string Username { get; set; }
+        public string displayName { get; set; }
+        public string Email { get; set; }
     }
 }

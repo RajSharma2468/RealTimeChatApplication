@@ -8,7 +8,7 @@ namespace ConnectHub.Messaging.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]  // All endpoints require JWT token
+    [Authorize]
     public class MessageController : ControllerBase
     {
         private readonly IMessageService _messageService;
@@ -18,96 +18,266 @@ namespace ConnectHub.Messaging.Controllers
             _messageService = messageService;
         }
         
-        // GET: api/message/direct/5?page=1&pageSize=20
-        [HttpGet("direct/{userId}")]
-        public async Task<IActionResult> GetDirectMessages(int userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        private int GetCurrentUserId()
         {
-            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-            var messages = await _messageService.GetDirectMessagesAsync(currentUserId, userId, page, pageSize);
-            return Ok(new { success = true, data = messages });
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            return string.IsNullOrEmpty(userIdClaim) ? 0 : int.Parse(userIdClaim);
         }
         
-        // GET: api/message/room/5?page=1&pageSize=20
-        [HttpGet("room/{roomId}")]
-        public async Task<IActionResult> GetRoomMessages(int roomId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
-        {
-            var messages = await _messageService.GetRoomMessagesAsync(roomId, page, pageSize);
-            return Ok(new { success = true, data = messages });
-        }
-        
-        // POST: api/message/send
+        // ================================================================
+        // SEND DIRECT MESSAGE - Supports /direct and /send
+        // ================================================================
+        [HttpPost("direct")]
         [HttpPost("send")]
         public async Task<IActionResult> SendDirectMessage([FromBody] SendMessageDto dto)
         {
-            var senderId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-            var message = await _messageService.SendDirectMessageAsync(senderId, dto);
-            return Ok(new { success = true, data = message, message = "Message sent successfully" });
+            try
+            {
+                var userId = GetCurrentUserId();
+                if (userId == 0)
+                    return Unauthorized(new { success = false, message = "User not authenticated" });
+                
+                var result = await _messageService.SendDirectMessageAsync(userId, dto);
+                return Ok(new { success = true, data = result });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
         }
         
-        // PUT: api/message/edit
-        [HttpPut("edit")]
-        public async Task<IActionResult> EditMessage([FromBody] EditMessageDto dto)
+        // ================================================================
+        // SEND ROOM MESSAGE - Supports /room and /room/send
+        // ================================================================
+        [HttpPost("room")]
+        [HttpPost("room/send")]
+        public async Task<IActionResult> SendRoomMessage([FromBody] SendRoomMessageDto dto)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-            var edited = await _messageService.EditMessageAsync(userId, dto);
-            return Ok(new { success = true, data = edited, message = "Message edited successfully" });
+            try
+            {
+                var userId = GetCurrentUserId();
+                if (userId == 0)
+                    return Unauthorized(new { success = false, message = "User not authenticated" });
+                
+                var result = await _messageService.SendRoomMessageAsync(userId, dto);
+                return Ok(new { success = true, data = result });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
         }
         
-        // DELETE: api/message/5
-        [HttpDelete("{messageId}")]
-        public async Task<IActionResult> DeleteMessage(int messageId)
+        // ================================================================
+        // GET RECENT CHATS - WITH TOKEN FOR AUTH SERVICE
+        // ================================================================
+        [HttpGet("recent-chats")]
+        public async Task<IActionResult> GetRecentChats()
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-            await _messageService.DeleteMessageAsync(userId, messageId);
-            return Ok(new { success = true, message = "Message deleted successfully" });
+            try
+            {
+                var userId = GetCurrentUserId();
+                if (userId == 0)
+                    return Unauthorized(new { success = false, message = "User not authenticated" });
+                
+                // Extract token from Authorization header
+                var authHeader = Request.Headers["Authorization"].ToString();
+                var token = authHeader.StartsWith("Bearer ") ? authHeader.Substring(7) : authHeader;
+                
+                var recentChats = await _messageService.GetRecentChatsAsync(userId, token);
+                return Ok(new { success = true, data = recentChats });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
         }
         
-        // GET: api/message/search?q=hello&roomId=5
+        // ================================================================
+        // GET DIRECT MESSAGES BETWEEN TWO USERS
+        // ================================================================
+        [HttpGet("direct/{userId}")]
+        public async Task<IActionResult> GetDirectMessages(int userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+        {
+            try
+            {
+                var currentUserId = GetCurrentUserId();
+                if (currentUserId == 0)
+                    return Unauthorized(new { success = false, message = "User not authenticated" });
+                
+                var messages = await _messageService.GetDirectMessagesAsync(currentUserId, userId, page, pageSize);
+                return Ok(new { success = true, data = messages });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
+        }
+        
+        // ================================================================
+        // GET ROOM MESSAGES
+        // ================================================================
+        [HttpGet("room/{roomId}")]
+        public async Task<IActionResult> GetRoomMessages(int roomId, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                if (userId == 0)
+                    return Unauthorized(new { success = false, message = "User not authenticated" });
+                
+                var messages = await _messageService.GetRoomMessagesAsync(roomId, page, pageSize);
+                return Ok(new { success = true, data = messages });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
+        }
+        
+        // ================================================================
+        // EDIT MESSAGE - POST endpoint
+        // ================================================================
+        [HttpPost("edit")]
+        public async Task<IActionResult> EditMessagePost([FromBody] EditMessageDto dto)
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                if (userId == 0)
+                    return Unauthorized(new { success = false, message = "User not authenticated" });
+                
+                if (dto.MessageId == 0)
+                    return BadRequest(new { success = false, message = "MessageId is required" });
+                
+                if (string.IsNullOrEmpty(dto.NewContent))
+                    return BadRequest(new { success = false, message = "NewContent is required" });
+                
+                var result = await _messageService.EditMessageAsync(userId, dto);
+                return Ok(new { success = true, data = result });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
+        }
+        
+        // ================================================================
+        // EDIT MESSAGE - PUT endpoint
+        // ================================================================
+        [HttpPut("{id}")]
+        public async Task<IActionResult> EditMessagePut(int id, [FromBody] EditMessageDto dto)
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                if (userId == 0)
+                    return Unauthorized(new { success = false, message = "User not authenticated" });
+                
+                dto.MessageId = id;
+                
+                if (string.IsNullOrEmpty(dto.NewContent))
+                    return BadRequest(new { success = false, message = "NewContent is required" });
+                
+                var result = await _messageService.EditMessageAsync(userId, dto);
+                return Ok(new { success = true, data = result });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
+        }
+        
+        // ================================================================
+        // DELETE MESSAGE - Supports both path and query parameter
+        // ================================================================
+        [HttpDelete("{id}")]
+        [HttpDelete("delete")]
+        public async Task<IActionResult> DeleteMessage(int? id, [FromQuery] int? messageId, [FromQuery] string deleteType = "FOR_ME")
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                if (userId == 0)
+                    return Unauthorized(new { success = false, message = "User not authenticated" });
+                
+                int finalMessageId = id ?? messageId ?? 0;
+                
+                if (finalMessageId == 0)
+                    return BadRequest(new { success = false, message = "Message ID is required" });
+                
+                var dto = new DeleteMessageDto { MessageId = finalMessageId, DeleteType = deleteType };
+                var result = await _messageService.DeleteMessageAsync(userId, dto);
+                return Ok(new { success = result });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
+        }
+        
+        // ================================================================
+        // SEARCH MESSAGES
+        // ================================================================
         [HttpGet("search")]
         public async Task<IActionResult> SearchMessages([FromQuery] string q, [FromQuery] int? roomId = null)
         {
-            if (string.IsNullOrEmpty(q) || q.Length < 2)
-                return Ok(new { success = true, data = new List<SearchMessageDto>() });
-            
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-            var results = await _messageService.SearchMessagesAsync(userId, q, roomId);
-            return Ok(new { success = true, data = results });
+            try
+            {
+                var userId = GetCurrentUserId();
+                if (userId == 0)
+                    return Unauthorized(new { success = false, message = "User not authenticated" });
+                
+                var results = await _messageService.SearchMessagesAsync(userId, q, roomId);
+                return Ok(new { success = true, data = results });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
         }
         
-        // GET: api/message/unread/count
+        // ================================================================
+        // GET UNREAD COUNT
+        // ================================================================
         [HttpGet("unread/count")]
         public async Task<IActionResult> GetUnreadCount()
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            var userId = GetCurrentUserId();
+            if (userId == 0)
+                return Unauthorized(new { success = false, message = "User not authenticated" });
+            
             var count = await _messageService.GetUnreadCountAsync(userId);
             return Ok(new { success = true, data = count });
         }
         
-        // PUT: api/message/read/5
+        // ================================================================
+        // MARK MESSAGE AS READ - Supports both POST and PUT
+        // ================================================================
+        [HttpPost("read/{messageId}")]
         [HttpPut("read/{messageId}")]
         public async Task<IActionResult> MarkAsRead(int messageId)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-            await _messageService.MarkAsReadAsync(userId, messageId);
-            return Ok(new { success = true, message = "Message marked as read" });
+            var userId = GetCurrentUserId();
+            if (userId == 0)
+                return Unauthorized(new { success = false, message = "User not authenticated" });
+            
+            var result = await _messageService.MarkAsReadAsync(userId, messageId);
+            return Ok(new { success = result });
         }
         
-        // PUT: api/message/read-all?senderId=5
-        [HttpPut("read-all")]
+        // ================================================================
+        // MARK ALL AS READ
+        // ================================================================
+        [HttpPost("read/all")]
         public async Task<IActionResult> MarkAllAsRead([FromQuery] int? senderId = null)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-            await _messageService.MarkAllAsReadAsync(userId, senderId);
-            return Ok(new { success = true, message = "All messages marked as read" });
-        }
-        
-        // GET: api/message/recent-chats
-        [HttpGet("recent-chats")]
-        public async Task<IActionResult> GetRecentChats()
-        {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-            var chats = await _messageService.GetRecentChatsAsync(userId);
-            return Ok(new { success = true, data = chats });
+            var userId = GetCurrentUserId();
+            if (userId == 0)
+                return Unauthorized(new { success = false, message = "User not authenticated" });
+            
+            var result = await _messageService.MarkAllAsReadAsync(userId, senderId);
+            return Ok(new { success = result });
         }
     }
 }

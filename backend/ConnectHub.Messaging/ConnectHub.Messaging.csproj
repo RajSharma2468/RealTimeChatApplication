@@ -24,4 +24,9 @@
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.3.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\ConnectHub.Media\ConnectHub.Media.csproj" />
+    <ProjectReference Include="..\ConnectHub.Auth\ConnectHub.Auth.csproj" />
+  </ItemGroup>
+
 </Project>

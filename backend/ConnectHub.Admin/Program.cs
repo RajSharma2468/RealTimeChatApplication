@@ -78,10 +78,5 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<AdminDbContext>();
-    dbContext.Database.Migrate();
-}
 
 app.Run();

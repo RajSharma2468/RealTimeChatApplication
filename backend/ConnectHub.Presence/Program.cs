@@ -4,24 +4,39 @@ using Microsoft.OpenApi.Models;
 using System.Text;
 using ConnectHub.Presence.Services;
 using ConnectHub.Presence.Hubs;
-using ConnectHub.Presence.BackgroundServices;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ================================================================
+// CORS Configuration
+// ================================================================
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:3000")
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
+    });
+});
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// Add SignalR for real-time communication
+// SignalR
 builder.Services.AddSignalR();
 
-// Register PresenceService as Singleton (shared across all connections)
+// Services
 builder.Services.AddSingleton<IPresenceService, PresenceService>();
-
-// Add background service for connection cleanup
-builder.Services.AddHostedService<ConnectionCleanupService>();
+builder.Services.AddHttpClient();
 
 // JWT Authentication
-var key = Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]);
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrEmpty(jwtKey)) throw new Exception("Jwt:Key is missing");
+var key = Encoding.UTF8.GetBytes(jwtKey);
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -35,10 +50,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidateAudience = true,
             ValidAudience = builder.Configuration["Jwt:Audience"],
-            ClockSkew = TimeSpan.Zero
+            ClockSkew = TimeSpan.Zero,
+            NameClaimType = ClaimTypes.NameIdentifier
         };
         
-        // For SignalR, read token from query string (WebSocket doesn't support headers)
+        // SignalR token handling (WebSocket doesn't support headers)
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
@@ -76,18 +92,20 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
+// ================================================================
+// CORS must be first in pipeline
+// ================================================================
+app.UseCors("AllowFrontend");
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-
-// Map SignalR Hub endpoint
 app.MapHub<PresenceHub>("/presenceHub");
 
 app.Run();

@@ -15,5 +15,10 @@ namespace ConnectHub.Messaging.Repositories
         Task<bool> MarkAsReadAsync(int messageId, int userId);
         Task<bool> MarkAllAsReadAsync(int userId, int? senderId = null);
         Task<IEnumerable<Message>> GetRecentChatsAsync(int userId);
+        
+        // ================================================================
+        // ADD THIS METHOD
+        // ================================================================
+        Task<int> GetUnreadCountFromUserAsync(int userId, int fromUserId);
     }
 }

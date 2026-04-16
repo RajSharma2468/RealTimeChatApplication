@@ -11,6 +11,20 @@ using ConnectHub.Media.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ================================================================
+// ADD CORS HERE
+// ================================================================
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:3000")
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
+    });
+});
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
@@ -52,7 +66,6 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "ConnectHub Media API", Version = "v1" });
     
-    // Add JWT authentication
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -78,7 +91,6 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
     
-    // THIS IS THE KEY FIX - Map IFormFile to file type
     c.MapType<IFormFile>(() => new OpenApiSchema
     {
         Type = "string",
@@ -87,6 +99,27 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+
+// ================================================================
+// USE CORS HERE
+// ================================================================
+app.UseCors("AllowFrontend");
+
+// Handle OPTIONS preflight requests
+app.Use(async (context, next) =>
+{
+    if (context.Request.Method == "OPTIONS")
+    {
+        context.Response.Headers.Append("Access-Control-Allow-Origin", "http://localhost:3000");
+        context.Response.Headers.Append("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        context.Response.Headers.Append("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        context.Response.Headers.Append("Access-Control-Allow-Credentials", "true");
+        context.Response.StatusCode = 200;
+        await context.Response.CompleteAsync();
+        return;
+    }
+    await next();
+});
 
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
@@ -110,11 +143,5 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<MediaDbContext>();
-    dbContext.Database.Migrate();
-}
 
 app.Run();

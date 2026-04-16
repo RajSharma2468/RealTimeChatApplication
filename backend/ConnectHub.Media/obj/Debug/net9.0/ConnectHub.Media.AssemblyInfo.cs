@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ConnectHub.Media")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e15486d3d0493da5d9998c4eb05bec0694d713c1")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c14ef25c4906e88c68855f2b566a25eebeda8525")]
 [assembly: System.Reflection.AssemblyProductAttribute("ConnectHub.Media")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ConnectHub.Media")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
