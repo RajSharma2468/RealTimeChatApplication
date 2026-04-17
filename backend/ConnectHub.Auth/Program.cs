@@ -11,13 +11,17 @@ using ConnectHub.Auth.Middlewares;
 var builder = WebApplication.CreateBuilder(args);
 
 // ================================================================
-// CORS Configuration - ADD THIS
+// CORS Configuration - Local + Azure Production
 // ================================================================
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3000")
+        policy.WithOrigins(
+                "http://localhost:3000",                                    // Local React
+                "https://connecthub-webapp.azurestaticapps.net",           // Azure Frontend
+                "https://connecthub-gateway.azurewebsites.net"             // Azure Gateway
+              )
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials();
@@ -109,7 +113,7 @@ builder.Services.AddSwaggerGen(c =>
 var app = builder.Build();
 
 // ================================================================
-// OPTIONS HANDLER - MUST BE FIRST
+// OPTIONS HANDLER - MUST BE FIRST (For CORS preflight requests)
 // ================================================================
 app.Use(async (context, next) =>
 {
@@ -126,10 +130,11 @@ app.Use(async (context, next) =>
 });
 
 // ================================================================
-// Use CORS - ADD THIS
+// Use CORS - AFTER OPTIONS HANDLER
 // ================================================================
 app.UseCors("AllowFrontend");
 
+// Custom Middlewares
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
 
@@ -139,17 +144,29 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+else
+{
+    // Production - redirect HTTP to HTTPS
+    app.UseHttpsRedirection();
+}
 
-app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// Apply migrations automatically
+// Apply migrations automatically on startup
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    dbContext.Database.Migrate();
+    try
+    {
+        dbContext.Database.Migrate();
+        Console.WriteLine("Database migrations applied successfully.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error applying migrations: {ex.Message}");
+    }
 }
 
 app.Run();
