@@ -11,7 +11,7 @@ using ConnectHub.Auth.Middlewares;
 var builder = WebApplication.CreateBuilder(args);
 
 // ================================================================
-// CORS Configuration - ADD THIS
+// CORS Configuration
 // ================================================================
 builder.Services.AddCors(options =>
 {
@@ -24,17 +24,26 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Add services to container
 builder.Services.AddControllers();
 
-// Add DbContext with PostgreSQL
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+// ================================================================
+// DbContext with Timeout Fixes - UPDATED
+// ================================================================
+builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    
+    options.UseNpgsql(connectionString, npgsqlOptions =>
+    {
+        npgsqlOptions.CommandTimeout(30);
+        npgsqlOptions.EnableRetryOnFailure(3, TimeSpan.FromSeconds(10), null);
+        npgsqlOptions.MaxPoolSize(5);
+        npgsqlOptions.ConnectionIdleLifetime(TimeSpan.FromSeconds(30));
+    });
+});
 
-// Add Repositories
+// Add Repositories and Services
 builder.Services.AddScoped<IUserRepository, UserRepository>();
-
-// Add Services
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddSingleton<IJwtHelper, JwtHelper>();
 
@@ -58,7 +67,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ClockSkew = TimeSpan.Zero
         };
         
-        // For SignalR integration later
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
@@ -76,7 +84,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// Add Swagger for API documentation
+// Add Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -108,9 +116,7 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// ================================================================
-// OPTIONS HANDLER - MUST BE FIRST
-// ================================================================
+// OPTIONS HANDLER
 app.Use(async (context, next) =>
 {
     if (context.Request.Method == "OPTIONS")
@@ -125,15 +131,10 @@ app.Use(async (context, next) =>
     await next();
 });
 
-// ================================================================
-// Use CORS - ADD THIS
-// ================================================================
 app.UseCors("AllowFrontend");
-
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
 
-// Configure HTTP pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -145,7 +146,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// Apply migrations automatically
+// Migrations commented for production
 // using (var scope = app.Services.CreateScope())
 // {
 //     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
