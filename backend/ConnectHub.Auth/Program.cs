@@ -11,11 +11,6 @@ using ConnectHub.Auth.Middlewares;
 var builder = WebApplication.CreateBuilder(args);
 
 // ================================================================
-// CRITICAL FIX: Enable legacy timestamp behavior to prevent TimeSpan overflow
-// ================================================================
-AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
-
-// ================================================================
 // CORS Configuration
 // ================================================================
 builder.Services.AddCors(options =>
@@ -32,17 +27,12 @@ builder.Services.AddCors(options =>
 builder.Services.AddControllers();
 
 // ================================================================
-// DbContext with Timeout Fixes
+// DbContext - SIMPLE VERSION FOR Npgsql 7
 // ================================================================
 builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
 {
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-    
-    options.UseNpgsql(connectionString, npgsqlOptions =>
-    {
-        npgsqlOptions.CommandTimeout(30);
-        npgsqlOptions.EnableRetryOnFailure(3, TimeSpan.FromSeconds(10), null);
-    });
+    options.UseNpgsql(connectionString);
 });
 
 // Add Repositories and Services
