@@ -139,10 +139,10 @@ app.MapHub<PresenceHub>("/presenceHub");
 // ================================================================
 // DISABLE AUTO-MIGRATION (Run manually if needed)
 // ================================================================
-// using (var scope = app.Services.CreateScope())
-// {
-//     var dbContext = scope.ServiceProvider.GetRequiredService<MessageDbContext>();
-//     dbContext.Database.Migrate();
-// }
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<MessageDbContext>();
+    dbContext.Database.Migrate();
+}
 
 app.Run();
