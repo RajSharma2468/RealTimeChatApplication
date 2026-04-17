@@ -134,10 +134,10 @@ app.MapHub<NotificationHub>("/notificationHub");
 // ================================================================
 // DISABLE AUTO-MIGRATION (Run manually on Render shell if needed)
 // ================================================================
-// using (var scope = app.Services.CreateScope())
-// {
-//     var dbContext = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
-//     dbContext.Database.Migrate();
-// }
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+    dbContext.Database.Migrate();
+}
 
 app.Run();
