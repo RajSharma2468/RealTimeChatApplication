@@ -18,8 +18,8 @@
     </PackageReference>
     <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.3.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-    <!-- DOWNGRADE Npgsql to version 8.x to fix TimeSpan overflow -->
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4" />
+    <!-- FIXED: Using Npgsql 9.0.3 for .NET 9/EF Core 9 compatibility -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.3" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.0.0" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.3.0" />
   </ItemGroup>
