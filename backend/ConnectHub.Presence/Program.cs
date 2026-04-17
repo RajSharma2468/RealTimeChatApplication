@@ -8,8 +8,6 @@ using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
-
 // ================================================================
 // CORS Configuration
 // ================================================================
@@ -17,7 +15,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "https://connecthub-frontend.onrender.com")
+        policy.WithOrigins("http://localhost:3000")
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials();

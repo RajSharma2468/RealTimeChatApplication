@@ -8,32 +8,7 @@ using ConnectHub.Admin.Repositories;
 using ConnectHub.Admin.Services;
 using ConnectHub.Admin.Middlewares;
 
-// Create a custom options object to disable file watching
-var options = new WebApplicationOptions
-{
-    Args = args,
-    EnvironmentName = Environments.Production,
-    WebRootPath = "wwwroot",
-    ApplicationName = typeof(Program).Assembly.FullName
-};
-
-var builder = WebApplication.CreateBuilder(options);
-
-// CRITICAL: Explicitly add configuration without reloadOnChange
-builder.Configuration.Sources.Clear();
-builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
-builder.Configuration.AddEnvironmentVariables();
-
-// CORS
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAll", policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
-});
+var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -45,7 +20,10 @@ builder.Services.AddScoped<IAdminRepository, AdminRepository>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 
 var jwtKey = builder.Configuration["Jwt:Key"];
-if (string.IsNullOrEmpty(jwtKey)) throw new Exception("Jwt:Key is missing");
+if (string.IsNullOrEmpty(jwtKey))
+{
+    throw new Exception("Jwt:Key is missing in appsettings.json");
+}
 var key = Encoding.UTF8.GetBytes(jwtKey);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -86,8 +64,6 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-app.UseCors("AllowAll");
-
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
 
@@ -101,5 +77,6 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
 
 app.Run();

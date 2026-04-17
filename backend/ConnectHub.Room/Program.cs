@@ -14,7 +14,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "https://connecthub-frontend-x4xm.onrender.com")
+        policy.WithOrigins("http://localhost:3000")
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials();
@@ -87,23 +87,5 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// ================================================================
-// AUTO MIGRATION - Database will be created/updated on startup
-// ================================================================
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<RoomDbContext>();
-    try
-    {
-        // This will create the database and apply any pending migrations
-        dbContext.Database.Migrate();
-        Console.WriteLine("Database migration completed successfully.");
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Database migration failed: {ex.Message}");
-        // Don't throw - let the app start anyway
-    }
-}
 
 app.Run();
