@@ -27,7 +27,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddControllers();
 
 // ================================================================
-// DbContext with Timeout Fixes - UPDATED
+// DbContext with Timeout Fixes - COMPLETE WORKING VERSION
 // ================================================================
 builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
 {
@@ -37,8 +37,6 @@ builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
     {
         npgsqlOptions.CommandTimeout(30);
         npgsqlOptions.EnableRetryOnFailure(3, TimeSpan.FromSeconds(10), null);
-        npgsqlOptions.MaxPoolSize(5);
-        npgsqlOptions.ConnectionIdleLifetime(TimeSpan.FromSeconds(30));
     });
 });
 
@@ -67,6 +65,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ClockSkew = TimeSpan.Zero
         };
         
+        // For SignalR integration later
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
@@ -84,7 +83,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// Add Swagger
+// Add Swagger for API documentation
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -116,7 +115,9 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// OPTIONS HANDLER
+// ================================================================
+// OPTIONS HANDLER - MUST BE FIRST
+// ================================================================
 app.Use(async (context, next) =>
 {
     if (context.Request.Method == "OPTIONS")
@@ -131,10 +132,14 @@ app.Use(async (context, next) =>
     await next();
 });
 
+// ================================================================
+// Use CORS and Middleware
+// ================================================================
 app.UseCors("AllowFrontend");
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
 
+// Configure HTTP pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -146,7 +151,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// Migrations commented for production
+// Migrations commented for production (apply manually)
 // using (var scope = app.Services.CreateScope())
 // {
 //     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
