@@ -11,6 +11,11 @@ using ConnectHub.Auth.Middlewares;
 var builder = WebApplication.CreateBuilder(args);
 
 // ================================================================
+// CRITICAL FIX: Enable legacy timestamp behavior to prevent TimeSpan overflow
+// ================================================================
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
+// ================================================================
 // CORS Configuration
 // ================================================================
 builder.Services.AddCors(options =>
@@ -27,7 +32,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddControllers();
 
 // ================================================================
-// DbContext with Timeout Fixes - WORKING VERSION (NO MaxPoolSize or ConnectionIdleLifetime)
+// DbContext with Timeout Fixes
 // ================================================================
 builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
 {
@@ -141,7 +146,6 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-
 
 // using (var scope = app.Services.CreateScope())
 // {
