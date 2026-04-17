@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: connecthub-auth
+    runtime: docker
+    repo: https://github.com/RajSharma2468/RealTimeChatApplication
+    branch: dev
+    rootDir: backend/ConnectHub.Auth
+    dockerfilePath: Dockerfile
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: Jwt__ExpiryInMinutes
+        value: "1440"
