@@ -2,34 +2,15 @@ using Ocelot.DependencyInjection;
 using Ocelot.Middleware;
 using Microsoft.OpenApi.Models;
 
-// ================================================================
-// BUILD THE APPLICATION
-// ================================================================
 var builder = WebApplication.CreateBuilder(args);
 
-// ================================================================
-// CRITICAL FIX: Disable file watcher to avoid inotify limit on Render
-// ================================================================
-builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
-builder.Configuration.AddJsonFile("ocelot.json", optional: false, reloadOnChange: false);
+// Load Ocelot Configuration
+builder.Configuration.AddJsonFile("ocelot.json", optional: false, reloadOnChange: true);
 
-// ================================================================
-// 1. LOAD OCELOT CONFIGURATION
-// ================================================================
-// Ocelot.json contains all routing rules for microservices
-// Each route maps an incoming request to the appropriate service
-builder.Configuration.AddJsonFile("ocelot.json", optional: false, reloadOnChange: false);
-
-// ================================================================
-// 2. ADD OCELOT SERVICES
-// ================================================================
-// Ocelot handles request routing, load balancing, and middleware
+// Add Ocelot Services
 builder.Services.AddOcelot();
 
-// ================================================================
-// 3. ADD SWAGGER FOR API DOCUMENTATION
-// ================================================================
-// Provides interactive API documentation at /swagger
+// Add Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -41,48 +22,23 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 // ================================================================
-// 4. CORS CONFIGURATION - Allow React Frontend
+// CORS CONFIGURATION - FIXED (Local + Render)
 // ================================================================
-// CORS (Cross-Origin Resource Sharing) allows frontend (port 3000)
-// to communicate with gateway (port 5000)
-//
-// IMPORTANT: SignalR WebSockets require:
-// - Specific origin (not wildcard *)
-// - AllowCredentials() for authentication
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "https://connecthub-frontend.onrender.com")
-              .AllowAnyMethod()                      // Allow GET, POST, PUT, DELETE
-              .AllowAnyHeader()                      // Allow any headers
-              .AllowCredentials();                   // Required for SignalR WebSockets
+        policy.WithOrigins(
+                "http://localhost:3000",                          // Local React
+                "https://connecthub-frontend-x4xm.onrender.com"   // Render Frontend
+              )
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
     });
 });
 
-// ================================================================
-// 5. BUILD THE APP
-// ================================================================
 var app = builder.Build();
-
-// ================================================================
-// 6. MIDDLEWARE PIPELINE
-// ================================================================
-
-// Handle OPTIONS preflight requests
-app.Use(async (context, next) =>
-{
-    if (context.Request.Method == "OPTIONS")
-    {
-        context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
-        context.Response.Headers.Append("Access-Control-Allow-Methods", "*");
-        context.Response.Headers.Append("Access-Control-Allow-Headers", "*");
-        context.Response.StatusCode = 200;
-        await context.Response.CompleteAsync();
-        return;
-    }
-    await next();
-});
 
 // Swagger (Development only)
 if (app.Environment.IsDevelopment())
@@ -94,11 +50,10 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-// CORS - Must be called before Ocelot
+// CORS - Must be before Ocelot
 app.UseCors("AllowFrontend");
 
 // Ocelot - Routes requests to microservices
 await app.UseOcelot();
 
-// Run the application
 app.Run();
