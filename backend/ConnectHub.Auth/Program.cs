@@ -10,9 +10,7 @@ using ConnectHub.Auth.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ================================================================
 // CORS Configuration
-// ================================================================
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
@@ -26,21 +24,19 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddControllers();
 
-// ================================================================
-// DbContext - SIMPLE VERSION FOR Npgsql 7
-// ================================================================
-builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
+// DbContext - Simple (No timeout options)
+builder.Services.AddDbContext<AppDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
     options.UseNpgsql(connectionString);
 });
 
-// Add Repositories and Services
+// Repositories and Services
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddSingleton<IJwtHelper, JwtHelper>();
 
-// Add JWT Authentication
+// JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"];
 var key = Encoding.UTF8.GetBytes(jwtKey);
 
@@ -136,11 +132,5 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-
-// using (var scope = app.Services.CreateScope())
-// {
-//     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-//     dbContext.Database.Migrate();
-// }
 
 app.Run();
