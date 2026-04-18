@@ -34,13 +34,20 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// CORS middleware - MUST be before everything
+// CORS - MUST BE ABSOLUTE FIRST
 app.Use(async (context, next) =>
 {
-    context.Response.Headers["Access-Control-Allow-Origin"] = "https://witty-beach-0a0d8ad10.7.azurestaticapps.net";
-    context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS";
-    context.Response.Headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept";
-    context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
+    var origin = context.Request.Headers["Origin"].ToString();
+
+    if (origin == "https://witty-beach-0a0d8ad10.7.azurestaticapps.net" ||
+        origin == "http://localhost:3000")
+    {
+        context.Response.Headers["Access-Control-Allow-Origin"] = origin;
+        context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH";
+        context.Response.Headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-Requested-With";
+        context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
+        context.Response.Headers["Access-Control-Max-Age"] = "86400";
+    }
 
     if (context.Request.Method == "OPTIONS")
     {

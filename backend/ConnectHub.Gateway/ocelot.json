@@ -5,7 +5,7 @@
       "DownstreamScheme": "https",
       "DownstreamHostAndPorts": [
         {
-          "Host": "connecthub-auth-brdsdmghhhgwaphq.centralus-01.azurewebsites.net",
+          "Host": "connecthub-auth-brdsdmgghhgwaphqg.centralus-01.azurewebsites.net",
           "Port": 443
         }
       ],
@@ -17,7 +17,7 @@
       "DownstreamScheme": "https",
       "DownstreamHostAndPorts": [
         {
-          "Host": "connecthub-auth-brdsdmghhhgwaphq.centralus-01.azurewebsites.net",
+          "Host": "connecthub-auth-brdsdmgghhgwaphqg.centralus-01.azurewebsites.net",
           "Port": 443
         }
       ],
