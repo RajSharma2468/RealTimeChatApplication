@@ -8,10 +8,8 @@ on:
 
 jobs:
   build-and-deploy:
-    runs-on: windows-latest
-    permissions:
-      contents: read
-
+    runs-on: ubuntu-latest
+    
     steps:
       - uses: actions/checkout@v4
 
@@ -33,6 +31,5 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'connecthub-room'
-          slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_ROOM }}
           package: ./publish
