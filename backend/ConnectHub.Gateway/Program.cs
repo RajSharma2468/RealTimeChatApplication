@@ -4,14 +4,11 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configuration
 builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
 builder.Configuration.AddJsonFile("ocelot.json", optional: false, reloadOnChange: false);
 
-// Ocelot
 builder.Services.AddOcelot();
 
-// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -22,14 +19,13 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
         policy.WithOrigins(
                 "http://localhost:3000",
-                "https://connecthub-webapp.azurestaticapps.net"
+                "https://witty-beach-0a0d8ad10.7.azurestaticapps.net"
               )
               .AllowAnyMethod()
               .AllowAnyHeader()
@@ -39,14 +35,14 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// OPTIONS HANDLER - MUST BE FIRST
 app.Use(async (context, next) =>
 {
     if (context.Request.Method == "OPTIONS")
     {
-        context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
-        context.Response.Headers.Append("Access-Control-Allow-Methods", "*");
-        context.Response.Headers.Append("Access-Control-Allow-Headers", "*");
+        context.Response.Headers.Append("Access-Control-Allow-Origin", "https://witty-beach-0a0d8ad10.7.azurestaticapps.net");
+        context.Response.Headers.Append("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        context.Response.Headers.Append("Access-Control-Allow-Headers", "Authorization, Content-Type");
+        context.Response.Headers.Append("Access-Control-Allow-Credentials", "true");
         context.Response.StatusCode = 200;
         await context.Response.CompleteAsync();
         return;
@@ -54,7 +50,6 @@ app.Use(async (context, next) =>
     await next();
 });
 
-//  Swagger - Production me bhi chalega
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
@@ -64,7 +59,6 @@ app.UseSwaggerUI(c =>
 
 app.UseCors("AllowFrontend");
 
-// Ocelot
 await app.UseOcelot();
 
 app.Run();

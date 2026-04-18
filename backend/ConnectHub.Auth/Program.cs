@@ -10,17 +10,14 @@ using ConnectHub.Auth.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ================================================================
-// CORS Configuration
-// ================================================================
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
         policy.WithOrigins(
                 "http://localhost:3000",
-                "https://connecthub-webapp.azurestaticapps.net",
-                "https://connecthub-gateway.azurewebsites.net"
+                "https://witty-beach-0a0d8ad10.7.azurestaticapps.net",
+                "https://connecthub-gateway-g4gpfvdrgucrcgh4.centralus-01.azurewebsites.net"
               )
               .AllowAnyMethod()
               .AllowAnyHeader()
@@ -28,19 +25,15 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Controllers
 builder.Services.AddControllers();
 
-// PostgreSQL
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Repositories & Services
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddSingleton<IJwtHelper, JwtHelper>();
 
-// JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"];
 var key = Encoding.UTF8.GetBytes(jwtKey!);
 
@@ -77,7 +70,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-//  Swagger - Sirf Security Definition yahan
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -109,17 +101,15 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// ================================================================
-// OPTIONS HANDLER - MUST BE FIRST
-// ================================================================
 app.Use(async (context, next) =>
 {
     if (context.Request.Method == "OPTIONS")
     {
+        context.Response.Headers.Append("Access-Control-Allow-Origin", "https://witty-beach-0a0d8ad10.7.azurestaticapps.net");
+        context.Response.Headers.Append("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        context.Response.Headers.Append("Access-Control-Allow-Headers", "Authorization, Content-Type");
+        context.Response.Headers.Append("Access-Control-Allow-Credentials", "true");
         context.Response.StatusCode = 200;
-        context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
-        context.Response.Headers.Append("Access-Control-Allow-Methods", "*");
-        context.Response.Headers.Append("Access-Control-Allow-Headers", "*");
         await context.Response.CompleteAsync();
         return;
     }
@@ -128,16 +118,14 @@ app.Use(async (context, next) =>
 
 app.UseCors("AllowFrontend");
 
-// Custom Middlewares
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
 
-//  Swagger - Production me bhi chalega
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "ConnectHub Auth API v1");
-    c.RoutePrefix = string.Empty; // Root URL pe Swagger khulega
+    c.RoutePrefix = string.Empty;
 });
 
 if (!app.Environment.IsDevelopment())
@@ -149,18 +137,17 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-//  Auto migrate on startup
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     try
     {
         dbContext.Database.Migrate();
-        Console.WriteLine(" Database migrations applied successfully.");
+        Console.WriteLine("Database migrations applied successfully.");
     }
     catch (Exception ex)
     {
-        Console.WriteLine($" Error applying migrations: {ex.Message}");
+        Console.WriteLine($"Error applying migrations: {ex.Message}");
     }
 }
 
