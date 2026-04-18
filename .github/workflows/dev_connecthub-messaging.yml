@@ -27,7 +27,7 @@ jobs:
         run: dotnet build ./backend/ConnectHub.Messaging/ConnectHub.Messaging.csproj --configuration Release --no-restore
 
       - name: Publish
-        run: dotnet publish ./backend/ConnectHub.Messaging/ConnectHub.Messaging.csproj -c Release -o ./publish
+        run: dotnet publish ./backend/ConnectHub.Messaging/ConnectHub.Messaging.csproj -c Release -o ./publish-messaging
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
@@ -35,4 +35,4 @@ jobs:
           app-name: 'connecthub-messaging'
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_MESSAGING }}
-          package: ./publish
+          package: ./publish-messaging
