@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ConnectHub.Messaging")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1cce2b48490a64f68f0026000b970be00184f838")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0816277052a8195981c06b076bada75f736e2d61")]
 [assembly: System.Reflection.AssemblyProductAttribute("ConnectHub.Messaging")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ConnectHub.Messaging")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
