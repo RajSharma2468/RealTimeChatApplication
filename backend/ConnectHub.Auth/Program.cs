@@ -18,9 +18,9 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend", policy =>
     {
         policy.WithOrigins(
-                "http://localhost:3000",                                    // Local React
-                "https://connecthub-webapp.azurestaticapps.net",           // Azure Frontend
-                "https://connecthub-gateway.azurewebsites.net"             // Azure Gateway
+                "http://localhost:3000",
+                "https://connecthub-webapp.azurestaticapps.net",
+                "https://connecthub-gateway.azurewebsites.net"
               )
               .AllowAnyMethod()
               .AllowAnyHeader()
@@ -28,21 +28,18 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Add services to container
 builder.Services.AddControllers();
 
-// Add DbContext with PostgreSQL
+// PostgreSQL
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Add Repositories
+// Repositories & Services
 builder.Services.AddScoped<IUserRepository, UserRepository>();
-
-// Add Services
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddSingleton<IJwtHelper, JwtHelper>();
 
-// Add JWT Authentication
+// JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"];
 var key = Encoding.UTF8.GetBytes(jwtKey);
 
@@ -61,8 +58,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = builder.Configuration["Jwt:Audience"],
             ClockSkew = TimeSpan.Zero
         };
-        
-        // For SignalR integration later
+
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
@@ -80,10 +76,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// Add Swagger for API documentation
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "ConnectHub Auth API v1");
     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -93,7 +90,7 @@ builder.Services.AddSwaggerGen(c =>
         In = Microsoft.OpenApi.Models.ParameterLocation.Header,
         Description = "Enter JWT token like: Bearer your-token-here"
     });
-    
+
     c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
     {
         {
@@ -113,7 +110,7 @@ builder.Services.AddSwaggerGen(c =>
 var app = builder.Build();
 
 // ================================================================
-// OPTIONS HANDLER - MUST BE FIRST (For CORS preflight requests)
+// OPTIONS HANDLER - MUST BE FIRST
 // ================================================================
 app.Use(async (context, next) =>
 {
@@ -129,24 +126,22 @@ app.Use(async (context, next) =>
     await next();
 });
 
-// ================================================================
-// Use CORS - AFTER OPTIONS HANDLER
-// ================================================================
 app.UseCors("AllowFrontend");
 
 // Custom Middlewares
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
 
-// Configure HTTP pipeline
-if (app.Environment.IsDevelopment())
+//  Swagger - Production me bhi chalega
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-else
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "ConnectHub Auth API v1");
+    c.RoutePrefix = string.Empty; // Root URL pe Swagger
+});
+
+if (!app.Environment.IsDevelopment())
 {
-    // Production - redirect HTTP to HTTPS
     app.UseHttpsRedirection();
 }
 
@@ -154,18 +149,18 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// Apply migrations automatically on startup
+// Auto migrate on startup
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     try
     {
         dbContext.Database.Migrate();
-        Console.WriteLine("Database migrations applied successfully.");
+        Console.WriteLine(" Database migrations applied successfully.");
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"Error applying migrations: {ex.Message}");
+        Console.WriteLine($" Error applying migrations: {ex.Message}");
     }
 }
 
