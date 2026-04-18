@@ -11,7 +11,7 @@ using ConnectHub.Auth.Middlewares;
 var builder = WebApplication.CreateBuilder(args);
 
 // ================================================================
-// CORS Configuration - Local + Azure Production
+// CORS Configuration
 // ================================================================
 builder.Services.AddCors(options =>
 {
@@ -28,6 +28,7 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Controllers
 builder.Services.AddControllers();
 
 // PostgreSQL
@@ -41,7 +42,7 @@ builder.Services.AddSingleton<IJwtHelper, JwtHelper>();
 
 // JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"];
-var key = Encoding.UTF8.GetBytes(jwtKey);
+var key = Encoding.UTF8.GetBytes(jwtKey!);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -76,11 +77,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// Swagger
+//  Swagger - Sirf Security Definition yahan
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "ConnectHub Auth API v1");
     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -137,7 +137,7 @@ app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "ConnectHub Auth API v1");
-    c.RoutePrefix = string.Empty; // Root URL pe Swagger
+    c.RoutePrefix = string.Empty; // Root URL pe Swagger khulega
 });
 
 if (!app.Environment.IsDevelopment())
@@ -149,7 +149,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// Auto migrate on startup
+//  Auto migrate on startup
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
