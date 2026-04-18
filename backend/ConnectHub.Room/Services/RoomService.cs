@@ -16,9 +16,6 @@ namespace ConnectHub.Room.Services
             _httpClientFactory = httpClientFactory;
         }
         
-        // ================================================================
-        // CREATE ROOM
-        // ================================================================
         public async Task<RoomResponseDto> CreateRoomAsync(int userId, CreateRoomDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.RoomName))
@@ -49,9 +46,6 @@ namespace ConnectHub.Room.Services
             return await MapToResponseDto(createdRoom, userId);
         }
         
-        // ================================================================
-        // GET ROOM BY ID
-        // ================================================================
         public async Task<RoomResponseDto> GetRoomByIdAsync(int roomId, int currentUserId)
         {
             var room = await _roomRepository.GetRoomByIdAsync(roomId);
@@ -61,9 +55,6 @@ namespace ConnectHub.Room.Services
             return await MapToResponseDto(room, currentUserId);
         }
         
-        // ================================================================
-        // GET PUBLIC ROOMS
-        // ================================================================
         public async Task<IEnumerable<RoomListDto>> GetPublicRoomsAsync(int currentUserId)
         {
             var rooms = await _roomRepository.GetPublicRoomsAsync();
@@ -88,9 +79,6 @@ namespace ConnectHub.Room.Services
             return result;
         }
         
-        // ================================================================
-        // GET MY ROOMS
-        // ================================================================
         public async Task<IEnumerable<RoomListDto>> GetMyRoomsAsync(int userId)
         {
             var rooms = await _roomRepository.GetRoomsByUserIdAsync(userId);
@@ -116,9 +104,6 @@ namespace ConnectHub.Room.Services
             return result;
         }
         
-        // ================================================================
-        // JOIN ROOM
-        // ================================================================
         public async Task<bool> JoinRoomAsync(int roomId, int userId)
         {
             var room = await _roomRepository.GetRoomByIdAsync(roomId);
@@ -138,9 +123,7 @@ namespace ConnectHub.Room.Services
                 }
                 else
                 {
-                    existingMember.IsActive = true;
-                    existingMember.JoinedAt = DateTime.UtcNow;
-                    await _roomRepository.UpdateMemberAsync(existingMember);
+                    await _roomRepository.ReactivateMemberAsync(roomId, userId);
                     return true;
                 }
             }
@@ -162,9 +145,6 @@ namespace ConnectHub.Room.Services
             return true;
         }
         
-        // ================================================================
-        // LEAVE ROOM
-        // ================================================================
         public async Task<bool> LeaveRoomAsync(int roomId, int userId)
         {
             var isMember = await _roomRepository.IsUserInRoomAsync(roomId, userId);
@@ -174,9 +154,6 @@ namespace ConnectHub.Room.Services
             return await _roomRepository.RemoveMemberAsync(roomId, userId);
         }
         
-        // ================================================================
-        // REMOVE MEMBER
-        // ================================================================
         public async Task<bool> RemoveMemberAsync(int roomId, int userIdToRemove, int currentUserId)
         {
             var isAdmin = await IsUserAdminAsync(roomId, currentUserId);
@@ -197,9 +174,6 @@ namespace ConnectHub.Room.Services
             return await _roomRepository.RemoveMemberAsync(roomId, userIdToRemove);
         }
         
-        // ================================================================
-        // UPDATE MEMBER ROLE
-        // ================================================================
         public async Task<bool> UpdateMemberRoleAsync(int adminUserId, UpdateMemberRoleDto dto)
         {
             var isAdmin = await IsUserAdminAsync(dto.RoomId, adminUserId);
@@ -213,9 +187,6 @@ namespace ConnectHub.Room.Services
             return await _roomRepository.UpdateMemberRoleAsync(dto.RoomId, dto.UserId, dto.NewRole);
         }
         
-        // ================================================================
-        // DELETE ROOM
-        // ================================================================
         public async Task<bool> DeleteRoomAsync(int roomId, int userId)
         {
             var room = await _roomRepository.GetRoomByIdAsync(roomId);
@@ -232,38 +203,24 @@ namespace ConnectHub.Room.Services
             return await _roomRepository.DeleteRoomAsync(roomId);
         }
         
-        // ================================================================
-        // CHECK IF USER IS ADMIN
-        // ================================================================
         public async Task<bool> IsUserAdminAsync(int roomId, int userId)
         {
             var member = await _roomRepository.GetMemberAsync(roomId, userId);
             return member != null && member.Role == "ADMIN";
         }
         
-        // ================================================================
-        // CHECK IF USER IS IN ROOM
-        // ================================================================
         public async Task<bool> IsUserInRoomAsync(int roomId, int userId)
         {
             return await _roomRepository.IsUserInRoomAsync(roomId, userId);
         }
         
-        // ================================================================
-        // GET MEMBER
-        // ================================================================
         public async Task<RoomMember?> GetMemberAsync(int roomId, int userId)
         {
             return await _roomRepository.GetMemberAsync(roomId, userId);
         }
         
-        // ================================================================
-        // GET ROOM MEMBERS - WITH REAL USER NAMES
-        // ================================================================
         public async Task<IEnumerable<RoomMemberDto>> GetRoomMembersAsync(int roomId, int currentUserId, string token)
         {
-            Console.WriteLine($"GetRoomMembersAsync: roomId={roomId}, currentUserId={currentUserId}");
-            
             var isMember = await _roomRepository.IsUserInRoomAsync(roomId, currentUserId);
             if (!isMember)
                 throw new Exception("You are not a member of this room");
@@ -273,7 +230,6 @@ namespace ConnectHub.Room.Services
             
             using var httpClient = _httpClientFactory.CreateClient();
             
-            // Add authorization header with token
             if (!string.IsNullOrEmpty(token))
             {
                 httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
@@ -285,8 +241,7 @@ namespace ConnectHub.Room.Services
                 
                 try
                 {
-                    Console.WriteLine($"Fetching user {member.UserId} from Auth Service");
-                    var response = await httpClient.GetAsync($"http://localhost:5046/api/auth/{member.UserId}");
+                    var response = await httpClient.GetAsync($"https://connecthub-auth-brdsdmghhhgwaphq.centralus-01.azurewebsites.net/api/auth/{member.UserId}");
                     
                     if (response.IsSuccessStatusCode)
                     {
@@ -298,13 +253,8 @@ namespace ConnectHub.Room.Services
                         
                         if (userData?.Success == true && userData.Data != null)
                         {
-                            userName = userData.Data.displayName ?? userData.Data.Username ?? $"User_{member.UserId}";
-                            Console.WriteLine($"Found name: {userName}");
+                            userName = userData.Data.DisplayName ?? userData.Data.Username ?? $"User_{member.UserId}";
                         }
-                    }
-                    else
-                    {
-                        Console.WriteLine($"HTTP Error: {response.StatusCode} for user {member.UserId}");
                     }
                 }
                 catch (Exception ex)
@@ -324,30 +274,23 @@ namespace ConnectHub.Room.Services
             return result;
         }
         
-        // ================================================================
-        // GET USER ROLE
-        // ================================================================
         private async Task<string> GetUserRoleAsync(int roomId, int userId)
         {
             var member = await _roomRepository.GetMemberAsync(roomId, userId);
             return member?.Role ?? "NONE";
         }
         
-        // ================================================================
-        // MAP TO RESPONSE DTO
-        // ================================================================
         private async Task<RoomResponseDto> MapToResponseDto(ChatRoom room, int currentUserId)
         {
             var memberCount = await _roomRepository.GetMemberCountAsync(room.Id);
             var userRole = await GetUserRoleAsync(room.Id, currentUserId);
             
-            // Get creator name from Auth Service
             string creatorName = $"User_{room.CreatedBy}";
             
             try
             {
                 using var httpClient = _httpClientFactory.CreateClient();
-                var response = await httpClient.GetAsync($"http://localhost:5046/api/auth/{room.CreatedBy}");
+                var response = await httpClient.GetAsync($"https://connecthub-auth-brdsdmghhhgwaphq.centralus-01.azurewebsites.net/api/auth/{room.CreatedBy}");
                 if (response.IsSuccessStatusCode)
                 {
                     var json = await response.Content.ReadAsStringAsync();
@@ -358,7 +301,7 @@ namespace ConnectHub.Room.Services
                     
                     if (userData?.Success == true && userData.Data != null)
                     {
-                        creatorName = userData.Data.displayName ?? userData.Data.Username ?? creatorName;
+                        creatorName = userData.Data.DisplayName ?? userData.Data.Username ?? creatorName;
                     }
                 }
             }
@@ -383,9 +326,6 @@ namespace ConnectHub.Room.Services
         }
     }
     
-    // ================================================================
-    // AUTH SERVICE RESPONSE DTO
-    // ================================================================
     public class AuthUserResponse
     {
         public bool Success { get; set; }
@@ -396,7 +336,7 @@ namespace ConnectHub.Room.Services
     {
         public int Id { get; set; }
         public string Username { get; set; }
-        public string displayName { get; set; }
+        public string DisplayName { get; set; }
         public string Email { get; set; }
     }
 }

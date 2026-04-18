@@ -30,7 +30,7 @@ namespace ConnectHub.Messaging.Services
                     httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
                 }
                 
-                var response = await httpClient.GetAsync($"http://localhost:5046/api/Auth/{userId}");
+                var response = await httpClient.GetAsync($"https://connecthub-auth-brdsdmghhhgwaphq.centralus-01.azurewebsites.net/api/Auth/{userId}");
                 if (response.IsSuccessStatusCode)
                 {
                     var json = await response.Content.ReadAsStringAsync();
@@ -278,7 +278,7 @@ namespace ConnectHub.Messaging.Services
                 
                 try
                 {
-                    var response = await httpClient.GetAsync($"http://localhost:5046/api/Auth/{otherUserId}");
+                    var response = await httpClient.GetAsync($"https://connecthub-auth-brdsdmghhhgwaphq.centralus-01.azurewebsites.net/api/Auth/{otherUserId}");
                     if (response.IsSuccessStatusCode)
                     {
                         var json = await response.Content.ReadAsStringAsync();
