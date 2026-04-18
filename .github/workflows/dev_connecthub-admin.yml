@@ -1,0 +1,38 @@
+name: Build and deploy ASP.Net Core app to Azure Web App - connecthub-admin
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET Core
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.x'
+
+      - name: Restore dependencies
+        run: dotnet restore ./backend/ConnectHub.Admin/ConnectHub.Admin.csproj
+
+      - name: Build
+        run: dotnet build ./backend/ConnectHub.Admin/ConnectHub.Admin.csproj --configuration Release --no-restore
+
+      - name: Publish
+        run: dotnet publish ./backend/ConnectHub.Admin/ConnectHub.Admin.csproj -c Release -o ./publish
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'connecthub-admin'
+          slot-name: 'Production'
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_ADMIN }}
+          package: ./publish
