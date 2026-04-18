@@ -19,7 +19,7 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(
                 "http://localhost:3000",
-                "https://connecthub-webapp.azurestaticapps.net",
+                "https://witty-beach-0a0d8ad10.7.azurestaticapps.net",
                 "https://connecthub-gateway.azurewebsites.net"
               )
               .AllowAnyMethod()
