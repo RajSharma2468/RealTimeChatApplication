@@ -55,7 +55,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(key),
             ValidateIssuer = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidateAudience = true,
+            ValidateAudience = false,
             ValidAudience = builder.Configuration["Jwt:Audience"],
             ClockSkew = TimeSpan.Zero,
             NameClaimType = ClaimTypes.NameIdentifier
