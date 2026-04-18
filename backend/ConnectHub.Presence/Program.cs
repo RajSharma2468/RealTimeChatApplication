@@ -8,14 +8,16 @@ using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ================================================================
-// CORS Configuration
-// ================================================================
+// CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3000")
+        policy.WithOrigins(
+                "http://localhost:3000",
+                "https://connecthub-webapp.azurestaticapps.net",
+                "https://connecthub-gateway.azurewebsites.net"
+              )
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials();
@@ -32,7 +34,7 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<IPresenceService, PresenceService>();
 builder.Services.AddHttpClient();
 
-// JWT Authentication
+// JWT
 var jwtKey = builder.Configuration["Jwt:Key"];
 if (string.IsNullOrEmpty(jwtKey)) throw new Exception("Jwt:Key is missing");
 var key = Encoding.UTF8.GetBytes(jwtKey);
@@ -53,8 +55,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ClockSkew = TimeSpan.Zero,
             NameClaimType = ClaimTypes.NameIdentifier
         };
-        
-        // SignalR token handling (WebSocket doesn't support headers)
+
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
@@ -86,21 +87,50 @@ builder.Services.AddSwaggerGen(c =>
     });
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
-        { new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } }, new string[] {} }
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] {}
+        }
     });
 });
 
 var app = builder.Build();
 
-// ================================================================
-// CORS must be first in pipeline
-// ================================================================
+// OPTIONS HANDLER - MUST BE FIRST
+app.Use(async (context, next) =>
+{
+    if (context.Request.Method == "OPTIONS")
+    {
+        context.Response.StatusCode = 200;
+        context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+        context.Response.Headers.Append("Access-Control-Allow-Methods", "*");
+        context.Response.Headers.Append("Access-Control-Allow-Headers", "*");
+        await context.Response.CompleteAsync();
+        return;
+    }
+    await next();
+});
+
 app.UseCors("AllowFrontend");
 
-if (app.Environment.IsDevelopment())
+// Swagger - Production me bhi chalega
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "ConnectHub Presence API v1");
+    c.RoutePrefix = string.Empty;
+});
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
 }
 
 app.UseAuthentication();
