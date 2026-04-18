@@ -13,12 +13,16 @@ using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// CORS Configuration
+// CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3000")
+        policy.WithOrigins(
+                "http://localhost:3000",
+                "https://connecthub-webapp.azurestaticapps.net",
+                "https://connecthub-gateway.azurewebsites.net"
+              )
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials();
@@ -28,14 +32,16 @@ builder.Services.AddCors(options =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSignalR();
+
 builder.Services.AddDbContext<NotificationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddHostedService<EmailCleanupService>();
 builder.Services.AddHttpClient();
 
-// JWT Authentication
+// JWT
 var jwtKey = builder.Configuration["Jwt:Key"];
 if (string.IsNullOrEmpty(jwtKey)) throw new Exception("Jwt:Key is missing");
 var key = Encoding.UTF8.GetBytes(jwtKey);
@@ -56,7 +62,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ClockSkew = TimeSpan.Zero,
             NameClaimType = ClaimTypes.NameIdentifier
         };
-        
+
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
@@ -88,24 +94,31 @@ builder.Services.AddSwaggerGen(c =>
     });
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
-        { new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } }, new string[] {} }
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] {}
+        }
     });
 });
 
 var app = builder.Build();
 
-// ================================================================
-// HANDLE OPTIONS PREFLIGHT REQUESTS - Allow ALL headers
-// ================================================================
+// OPTIONS HANDLER - MUST BE FIRST
 app.Use(async (context, next) =>
 {
     if (context.Request.Method == "OPTIONS")
     {
-        context.Response.Headers.Append("Access-Control-Allow-Origin", "http://localhost:3000");
+        context.Response.StatusCode = 200;
+        context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
         context.Response.Headers.Append("Access-Control-Allow-Methods", "*");
         context.Response.Headers.Append("Access-Control-Allow-Headers", "*");
-        context.Response.Headers.Append("Access-Control-Allow-Credentials", "true");
-        context.Response.StatusCode = 200;
         await context.Response.CompleteAsync();
         return;
     }
@@ -116,17 +129,37 @@ app.UseCors("AllowFrontend");
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
 
-if (app.Environment.IsDevelopment())
+// Swagger - Production me bhi chalega
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "ConnectHub Notification API v1");
+    c.RoutePrefix = string.Empty;
+});
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
 }
 
-app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<NotificationHub>("/notificationHub");
 
+// Auto migrate
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+    try
+    {
+        dbContext.Database.Migrate();
+        Console.WriteLine(" Notification DB migrations applied.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($" Migration error: {ex.Message}");
+    }
+}
 
 app.Run();
