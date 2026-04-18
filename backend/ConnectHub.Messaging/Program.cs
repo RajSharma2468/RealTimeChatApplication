@@ -6,19 +6,21 @@ using System.Text;
 using ConnectHub.Messaging.Data;
 using ConnectHub.Messaging.Repositories;
 using ConnectHub.Messaging.Services;
-using ConnectHub.Messaging.Hubs;  // ADD THIS
+using ConnectHub.Messaging.Hubs;
 using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ================================================================
-// CORS Configuration
-// ================================================================
+// CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3000")
+        policy.WithOrigins(
+                "http://localhost:3000",
+                "https://connecthub-webapp.azurestaticapps.net",
+                "https://connecthub-gateway.azurewebsites.net"
+              )
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials();
@@ -28,7 +30,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// Database - Use MessageDbContext
+// Database
 builder.Services.AddDbContext<MessageDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
@@ -37,12 +39,10 @@ builder.Services.AddScoped<IMessageRepository, MessageRepository>();
 builder.Services.AddScoped<IMessageService, MessageService>();
 builder.Services.AddHttpClient();
 
-// ================================================================
-// ADD SIGNALR - FOR REAL-TIME MESSAGING
-// ================================================================
+// SignalR
 builder.Services.AddSignalR();
 
-// JWT Authentication
+// JWT
 var jwtKey = builder.Configuration["Jwt:Key"];
 if (string.IsNullOrEmpty(jwtKey)) throw new Exception("Jwt:Key is missing");
 var key = Encoding.UTF8.GetBytes(jwtKey);
@@ -63,8 +63,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ClockSkew = TimeSpan.Zero,
             NameClaimType = ClaimTypes.NameIdentifier
         };
-        
-        // For SignalR - read token from query string
+
+        // SignalR ke liye
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
@@ -96,44 +96,72 @@ builder.Services.AddSwaggerGen(c =>
     });
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
-        { new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } }, new string[] {} }
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] {}
+        }
     });
 });
 
 var app = builder.Build();
 
-app.UseCors("AllowFrontend");
-
-// Handle OPTIONS preflight requests
+// OPTIONS HANDLER - MUST BE FIRST
 app.Use(async (context, next) =>
 {
     if (context.Request.Method == "OPTIONS")
     {
-        context.Response.Headers.Append("Access-Control-Allow-Origin", "http://localhost:3000");
+        context.Response.StatusCode = 200;
+        context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
         context.Response.Headers.Append("Access-Control-Allow-Methods", "*");
         context.Response.Headers.Append("Access-Control-Allow-Headers", "*");
-        context.Response.Headers.Append("Access-Control-Allow-Credentials", "true");
-        context.Response.StatusCode = 200;
         await context.Response.CompleteAsync();
         return;
     }
     await next();
 });
 
-if (app.Environment.IsDevelopment())
+app.UseCors("AllowFrontend");
+
+// Swagger - Production me bhi chalega
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "ConnectHub Messaging API v1");
+    c.RoutePrefix = string.Empty;
+});
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
 }
 
-app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// ================================================================
-// MAP SIGNALR HUBS
-// ================================================================
+// SignalR Hub
 app.MapHub<PresenceHub>("/presenceHub");
+
+// Auto migrate
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<MessageDbContext>();
+    try
+    {
+        dbContext.Database.Migrate();
+        Console.WriteLine(" Messaging DB migrations applied.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($" Migration error: {ex.Message}");
+    }
+}
 
 app.Run();
