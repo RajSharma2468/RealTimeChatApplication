@@ -27,7 +27,7 @@ jobs:
         run: dotnet build ./backend/ConnectHub.Messaging/ConnectHub.Messaging.csproj --configuration Release --no-restore
 
       - name: Publish
-        run: dotnet publish ./backend/ConnectHub.Messaging/ConnectHub.Messaging.csproj -c Release -o ./publish-messaging
+        run: dotnet publish ./backend/ConnectHub.Messaging/ConnectHub.Messaging.csproj -c Release -o ./publish-messaging --no-build
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
