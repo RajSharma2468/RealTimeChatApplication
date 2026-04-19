@@ -13,7 +13,10 @@ namespace ConnectHub.Room.Repositories
             _context = context;
         }
         
+        // ================================================================
         // ROOM OPERATIONS
+        // ================================================================
+        
         public async Task<ChatRoom> CreateRoomAsync(ChatRoom room)
         {
             _context.ChatRooms.Add(room);
@@ -64,7 +67,10 @@ namespace ConnectHub.Room.Repositories
             return true;
         }
         
+        // ================================================================
         // MEMBER OPERATIONS
+        // ================================================================
+        
         public async Task<RoomMember> AddMemberAsync(RoomMember member)
         {
             _context.RoomMembers.Add(member);
@@ -85,11 +91,34 @@ namespace ConnectHub.Room.Repositories
             return true;
         }
         
-        // ✅ FIXED - Direct SQL, no EF tracking
+        // ================================================================
+        // REACTIVATE MEMBER - COMPLETE FIX with exist check
+        // ================================================================
         public async Task<bool> ReactivateMemberAsync(int roomId, int userId)
         {
             try
             {
+                // First check if record exists
+                var exists = await _context.RoomMembers
+                    .AnyAsync(rm => rm.RoomId == roomId && rm.UserId == userId);
+                
+                if (!exists)
+                {
+                    // Record doesn't exist, create new
+                    var member = new RoomMember
+                    {
+                        RoomId = roomId,
+                        UserId = userId,
+                        Role = "MEMBER",
+                        JoinedAt = DateTime.UtcNow,
+                        IsActive = true
+                    };
+                    _context.RoomMembers.Add(member);
+                    await _context.SaveChangesAsync();
+                    return true;
+                }
+                
+                // Record exists, update using direct SQL
                 var rowsAffected = await _context.Database.ExecuteSqlInterpolatedAsync(
                     $"UPDATE \"RoomMembers\" SET \"IsActive\" = true, \"JoinedAt\" = NOW() WHERE \"RoomId\" = {roomId} AND \"UserId\" = {userId}");
                 
@@ -102,12 +131,18 @@ namespace ConnectHub.Room.Repositories
             }
         }
         
+        // ================================================================
+        // EXECUTE REACTIVATE - Direct SQL
+        // ================================================================
         public async Task ExecuteReactivateAsync(int roomId, int userId)
         {
             await _context.Database.ExecuteSqlInterpolatedAsync(
                 $"UPDATE \"RoomMembers\" SET \"IsActive\" = true, \"JoinedAt\" = NOW() WHERE \"RoomId\" = {roomId} AND \"UserId\" = {userId}");
         }
         
+        // ================================================================
+        // REMOVE MEMBER - Direct SQL
+        // ================================================================
         public async Task<bool> RemoveMemberAsync(int roomId, int userId)
         {
             await _context.Database.ExecuteSqlInterpolatedAsync(
@@ -140,6 +175,10 @@ namespace ConnectHub.Room.Repositories
                 $"UPDATE \"RoomMembers\" SET \"Role\" = {newRole} WHERE \"RoomId\" = {roomId} AND \"UserId\" = {userId}");
             return true;
         }
+        
+        // ================================================================
+        // UTILITY
+        // ================================================================
         
         public async Task<bool> RoomExistsAsync(int roomId)
         {
