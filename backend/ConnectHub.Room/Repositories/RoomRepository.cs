@@ -72,10 +72,10 @@ namespace ConnectHub.Room.Repositories
             return member;
         }
         
+        
         public async Task<RoomMember?> GetMemberAsync(int roomId, int userId)
         {
             return await _context.RoomMembers
-                .AsNoTracking()
                 .FirstOrDefaultAsync(rm => rm.RoomId == roomId && rm.UserId == userId);
         }
         
@@ -108,14 +108,12 @@ namespace ConnectHub.Room.Repositories
             }
         }
         
-        // ✅ ExecuteReactivate - SQL to avoid EF tracking conflict
         public async Task ExecuteReactivateAsync(int roomId, int userId)
         {
             await _context.Database.ExecuteSqlInterpolatedAsync(
                 $"UPDATE \"RoomMembers\" SET \"IsActive\" = true, \"JoinedAt\" = NOW() WHERE \"RoomId\" = {roomId} AND \"UserId\" = {userId}");
         }
         
-        // ✅ RemoveMember - SQL to avoid EF tracking conflict
         public async Task<bool> RemoveMemberAsync(int roomId, int userId)
         {
             await _context.Database.ExecuteSqlInterpolatedAsync(
