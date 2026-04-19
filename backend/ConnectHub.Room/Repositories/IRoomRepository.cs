@@ -19,8 +19,9 @@ namespace ConnectHub.Room.Repositories
         // ================================================================
         Task<RoomMember> AddMemberAsync(RoomMember member);
         Task<RoomMember?> GetMemberAsync(int roomId, int userId);
-        Task<bool> UpdateMemberAsync(RoomMember member);  // ADD THIS
-        Task<bool> ReactivateMemberAsync(int roomId, int userId);  // ADD THIS
+        Task<bool> UpdateMemberAsync(RoomMember member);
+        Task<bool> ReactivateMemberAsync(int roomId, int userId);
+        Task ExecuteReactivateAsync(int roomId, int userId);
         Task<bool> RemoveMemberAsync(int roomId, int userId);
         Task<IEnumerable<RoomMember>> GetRoomMembersAsync(int roomId);
         Task<bool> IsUserInRoomAsync(int roomId, int userId);

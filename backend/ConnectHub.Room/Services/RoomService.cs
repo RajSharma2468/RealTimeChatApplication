@@ -104,6 +104,10 @@ namespace ConnectHub.Room.Services
             return result;
         }
         
+        // ================================================================
+        // JOIN ROOM
+        // Uses ExecuteReactivateAsync for rejoin to bypass EF tracking
+        // ================================================================
         public async Task<bool> JoinRoomAsync(int roomId, int userId)
         {
             var room = await _roomRepository.GetRoomByIdAsync(roomId);
@@ -123,7 +127,8 @@ namespace ConnectHub.Room.Services
                 }
                 else
                 {
-                    await _roomRepository.ReactivateMemberAsync(roomId, userId);
+                    // Use interpolated SQL to avoid EF tracking conflict
+                    await _roomRepository.ExecuteReactivateAsync(roomId, userId);
                     return true;
                 }
             }

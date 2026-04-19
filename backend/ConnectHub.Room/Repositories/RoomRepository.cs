@@ -94,7 +94,7 @@ namespace ConnectHub.Room.Repositories
                 .FirstOrDefaultAsync(rm => rm.RoomId == roomId && rm.UserId == userId);
         }
         
-        // Updates an existing member record (role, status, etc.)
+        // Updates an existing member record
         public async Task<bool> UpdateMemberAsync(RoomMember member)
         {
             _context.RoomMembers.Update(member);
@@ -102,18 +102,19 @@ namespace ConnectHub.Room.Repositories
             return true;
         }
         
+        // ================================================================
+        // REACTIVATE MEMBER - EF Tracking approach
+        // ================================================================
         public async Task<bool> ReactivateMemberAsync(int roomId, int userId)
         {
             try
             {
-                // Fetch with tracking so EF can detect and save the change
                 var member = await _context.RoomMembers
                     .AsTracking()
                     .FirstOrDefaultAsync(rm => rm.RoomId == roomId && rm.UserId == userId);
                 
                 if (member == null) return false;
                 
-                // Reactivate and update join timestamp
                 member.IsActive = true;
                 member.JoinedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
@@ -126,8 +127,13 @@ namespace ConnectHub.Room.Repositories
             }
         }
         
+        public async Task ExecuteReactivateAsync(int roomId, int userId)
+        {
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE \"RoomMembers\" SET \"IsActive\" = true, \"JoinedAt\" = NOW() WHERE \"RoomId\" = {roomId} AND \"UserId\" = {userId}");
+        }
+        
         // Soft removes a member from a room by setting IsActive = false
-        // Uses AsTracking to ensure EF detects the change correctly
         public async Task<bool> RemoveMemberAsync(int roomId, int userId)
         {
             var member = await _context.RoomMembers
@@ -163,7 +169,6 @@ namespace ConnectHub.Room.Repositories
         }
         
         // Updates the role of a specific member in a room
-        // Uses AsTracking to ensure EF saves the role change properly
         public async Task<bool> UpdateMemberRoleAsync(int roomId, int userId, string newRole)
         {
             var member = await _context.RoomMembers
