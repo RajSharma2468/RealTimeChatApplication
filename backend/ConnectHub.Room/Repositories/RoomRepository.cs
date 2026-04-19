@@ -17,6 +17,7 @@ namespace ConnectHub.Room.Repositories
         // ROOM OPERATIONS
         // ================================================================
         
+        // Creates a new chat room in the database
         public async Task<ChatRoom> CreateRoomAsync(ChatRoom room)
         {
             _context.ChatRooms.Add(room);
@@ -24,12 +25,14 @@ namespace ConnectHub.Room.Repositories
             return room;
         }
         
+        // Fetches a single room by its ID
         public async Task<ChatRoom?> GetRoomByIdAsync(int roomId)
         {
             return await _context.ChatRooms
                 .FirstOrDefaultAsync(r => r.Id == roomId);
         }
         
+        // Returns all active public rooms, newest first
         public async Task<IEnumerable<ChatRoom>> GetPublicRoomsAsync()
         {
             return await _context.ChatRooms
@@ -38,6 +41,7 @@ namespace ConnectHub.Room.Repositories
                 .ToListAsync();
         }
         
+        // Returns all active rooms where the given user is a member
         public async Task<IEnumerable<ChatRoom>> GetRoomsByUserIdAsync(int userId)
         {
             var roomIds = await _context.RoomMembers
@@ -50,6 +54,7 @@ namespace ConnectHub.Room.Repositories
                 .ToListAsync();
         }
         
+        // Updates an existing room's details
         public async Task<ChatRoom> UpdateRoomAsync(ChatRoom room)
         {
             _context.ChatRooms.Update(room);
@@ -57,6 +62,7 @@ namespace ConnectHub.Room.Repositories
             return room;
         }
         
+        // Soft deletes a room by setting IsActive = false
         public async Task<bool> DeleteRoomAsync(int roomId)
         {
             var room = await GetRoomByIdAsync(roomId);
@@ -71,6 +77,7 @@ namespace ConnectHub.Room.Repositories
         // MEMBER OPERATIONS
         // ================================================================
         
+        // Adds a new member to a room
         public async Task<RoomMember> AddMemberAsync(RoomMember member)
         {
             _context.RoomMembers.Add(member);
@@ -78,15 +85,16 @@ namespace ConnectHub.Room.Repositories
             return member;
         }
         
+        // Fetches a member record by roomId and userId
+        // Uses AsNoTracking to avoid EF tracking conflicts during rejoins
         public async Task<RoomMember?> GetMemberAsync(int roomId, int userId)
         {
             return await _context.RoomMembers
+                .AsNoTracking()
                 .FirstOrDefaultAsync(rm => rm.RoomId == roomId && rm.UserId == userId);
         }
         
-        // ================================================================
-        // UPDATE MEMBER - Add this method
-        // ================================================================
+        // Updates an existing member record (role, status, etc.)
         public async Task<bool> UpdateMemberAsync(RoomMember member)
         {
             _context.RoomMembers.Update(member);
@@ -94,18 +102,22 @@ namespace ConnectHub.Room.Repositories
             return true;
         }
         
-        // ================================================================
-        // REACTIVATE MEMBER - Direct SQL for reactivation
-        // ================================================================
         public async Task<bool> ReactivateMemberAsync(int roomId, int userId)
         {
             try
             {
-                int rowsAffected = await _context.Database.ExecuteSqlRawAsync(
-                    "UPDATE \"RoomMembers\" SET \"IsActive\" = true, \"JoinedAt\" = NOW() WHERE \"RoomId\" = {0} AND \"UserId\" = {1}",
-                    roomId, userId);
+                // Fetch with tracking so EF can detect and save the change
+                var member = await _context.RoomMembers
+                    .AsTracking()
+                    .FirstOrDefaultAsync(rm => rm.RoomId == roomId && rm.UserId == userId);
                 
-                return rowsAffected > 0;
+                if (member == null) return false;
+                
+                // Reactivate and update join timestamp
+                member.IsActive = true;
+                member.JoinedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                return true;
             }
             catch (Exception ex)
             {
@@ -114,9 +126,13 @@ namespace ConnectHub.Room.Repositories
             }
         }
         
+        // Soft removes a member from a room by setting IsActive = false
+        // Uses AsTracking to ensure EF detects the change correctly
         public async Task<bool> RemoveMemberAsync(int roomId, int userId)
         {
-            var member = await GetMemberAsync(roomId, userId);
+            var member = await _context.RoomMembers
+                .AsTracking()
+                .FirstOrDefaultAsync(rm => rm.RoomId == roomId && rm.UserId == userId);
             if (member == null) return false;
             
             member.IsActive = false;
@@ -124,6 +140,7 @@ namespace ConnectHub.Room.Repositories
             return true;
         }
         
+        // Returns all active members of a room
         public async Task<IEnumerable<RoomMember>> GetRoomMembersAsync(int roomId)
         {
             return await _context.RoomMembers
@@ -131,21 +148,27 @@ namespace ConnectHub.Room.Repositories
                 .ToListAsync();
         }
         
+        // Checks if a user is an active member of a room
         public async Task<bool> IsUserInRoomAsync(int roomId, int userId)
         {
             return await _context.RoomMembers
                 .AnyAsync(rm => rm.RoomId == roomId && rm.UserId == userId && rm.IsActive);
         }
         
+        // Returns the count of active members in a room
         public async Task<int> GetMemberCountAsync(int roomId)
         {
             return await _context.RoomMembers
                 .CountAsync(rm => rm.RoomId == roomId && rm.IsActive);
         }
         
+        // Updates the role of a specific member in a room
+        // Uses AsTracking to ensure EF saves the role change properly
         public async Task<bool> UpdateMemberRoleAsync(int roomId, int userId, string newRole)
         {
-            var member = await GetMemberAsync(roomId, userId);
+            var member = await _context.RoomMembers
+                .AsTracking()
+                .FirstOrDefaultAsync(rm => rm.RoomId == roomId && rm.UserId == userId);
             if (member == null) return false;
             
             member.Role = newRole;
@@ -157,11 +180,13 @@ namespace ConnectHub.Room.Repositories
         // UTILITY
         // ================================================================
         
+        // Checks if a room exists by ID
         public async Task<bool> RoomExistsAsync(int roomId)
         {
             return await _context.ChatRooms.AnyAsync(r => r.Id == roomId);
         }
         
+        // Manually saves all pending changes to the database
         public async Task<int> SaveChangesAsync()
         {
             return await _context.SaveChangesAsync();
