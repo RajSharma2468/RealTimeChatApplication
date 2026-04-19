@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using ConnectHub.Room.Models;
 using ConnectHub.Room.Data;
 
@@ -85,19 +85,15 @@ namespace ConnectHub.Room.Repositories
             return true;
         }
         
+        // ✅ FIXED - Direct SQL, no EF tracking
         public async Task<bool> ReactivateMemberAsync(int roomId, int userId)
         {
             try
             {
-                var member = await _context.RoomMembers
-                    .FirstOrDefaultAsync(rm => rm.RoomId == roomId && rm.UserId == userId);
+                var rowsAffected = await _context.Database.ExecuteSqlInterpolatedAsync(
+                    $"UPDATE \"RoomMembers\" SET \"IsActive\" = true, \"JoinedAt\" = NOW() WHERE \"RoomId\" = {roomId} AND \"UserId\" = {userId}");
                 
-                if (member == null) return false;
-                
-                member.IsActive = true;
-                member.JoinedAt = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
-                return true;
+                return rowsAffected > 0;
             }
             catch (Exception ex)
             {
