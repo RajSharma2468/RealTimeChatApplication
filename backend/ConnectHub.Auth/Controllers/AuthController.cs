@@ -81,7 +81,7 @@ namespace ConnectHub.Auth.Controllers
         public IActionResult GoogleLogin()
         {
             var clientId = _configuration["Google:ClientId"];
-            var redirectUri = "http://localhost:5046/api/auth/google-callback";
+            var redirectUri = "https://connecthub-auth-brdsdmghhhgwaphq.centralus-01.azurewebsites.net/api/auth/google-callback";
             var url = $"https://accounts.google.com/o/oauth2/v2/auth?" +
                       $"client_id={clientId}&" +
                       $"redirect_uri={redirectUri}&" +
@@ -159,7 +159,7 @@ namespace ConnectHub.Auth.Controllers
                 });
                 
                 // Redirect back to frontend with token
-                var frontendUrl = $"http://localhost:3000/auth/google-callback?token={token}&userId={user.Id}&displayName={Uri.EscapeDataString(user.DisplayName)}&username={user.Username}";
+                var frontendUrl = $"https://witty-beach-0a0d8ad10.7.azurestaticapps.net/auth/google-callback?token={token}&userId={user.Id}&displayName={Uri.EscapeDataString(user.DisplayName)}&username={user.Username}";
                 
                 return Redirect(frontendUrl);
             }
@@ -176,7 +176,7 @@ namespace ConnectHub.Auth.Controllers
         {
             var clientId = _configuration["Google:ClientId"];
             var clientSecret = _configuration["Google:ClientSecret"];
-            var redirectUri = "http://localhost:5046/api/auth/google-callback";
+            var redirectUri = "https://connecthub-auth-brdsdmghhhgwaphq.centralus-01.azurewebsites.net/api/auth/google-callback";
             
             using var httpClient = new HttpClient();
             var content = new FormUrlEncodedContent(new[]
