@@ -18,6 +18,7 @@ namespace ConnectHub.Messaging.Services
         
         // ================================================================
         // HELPER: Get real user name from Auth Service
+        // Caches nothing — called per-request only
         // ================================================================
         private async Task<string> GetUserNameFromAuth(int userId, string token = null)
         {
@@ -112,6 +113,8 @@ namespace ConnectHub.Messaging.Services
         
         // ================================================================
         // GET DIRECT MESSAGES
+        // Fetches real sender name from Auth Service for each unique sender
+        // Uses a local cache to avoid duplicate Auth calls per request
         // ================================================================
         public async Task<IEnumerable<MessageResponseDto>> GetDirectMessagesAsync(int userId1, int userId2, int page, int pageSize)
         {
@@ -122,19 +125,49 @@ namespace ConnectHub.Messaging.Services
                 !(m.IsDeletedForReceiver && m.ReceiverId == userId1) &&
                 !(m.IsDeletedForSender && m.SenderId == userId2) &&
                 !(m.IsDeletedForReceiver && m.ReceiverId == userId2)
-            );
-            
-            return filteredMessages.Select(MapToResponseDto);
+            ).ToList();
+
+            // Cache names to avoid multiple Auth calls for same user
+            var userNameCache = new Dictionary<int, string>();
+
+            var result = new List<MessageResponseDto>();
+            foreach (var m in filteredMessages)
+            {
+                if (!userNameCache.ContainsKey(m.SenderId))
+                {
+                    userNameCache[m.SenderId] = await GetUserNameFromAuth(m.SenderId);
+                }
+                m.SenderName = userNameCache[m.SenderId];
+                result.Add(MapToResponseDto(m));
+            }
+
+            return result;
         }
         
         // ================================================================
         // GET ROOM MESSAGES
+        // Fetches real sender name from Auth Service for each unique sender
         // ================================================================
         public async Task<IEnumerable<MessageResponseDto>> GetRoomMessagesAsync(int roomId, int page, int pageSize)
         {
             var messages = await _messageRepository.GetRoomMessagesAsync(roomId, page, pageSize);
-            var filteredMessages = messages.Where(m => !m.IsDeleted);
-            return filteredMessages.Select(MapToResponseDto);
+            var filteredMessages = messages.Where(m => !m.IsDeleted).ToList();
+
+            // Cache names to avoid multiple Auth calls for same user
+            var userNameCache = new Dictionary<int, string>();
+
+            var result = new List<MessageResponseDto>();
+            foreach (var m in filteredMessages)
+            {
+                if (!userNameCache.ContainsKey(m.SenderId))
+                {
+                    userNameCache[m.SenderId] = await GetUserNameFromAuth(m.SenderId);
+                }
+                m.SenderName = userNameCache[m.SenderId];
+                result.Add(MapToResponseDto(m));
+            }
+
+            return result;
         }
         
         // ================================================================
@@ -253,6 +286,7 @@ namespace ConnectHub.Messaging.Services
         
         // ================================================================
         // GET RECENT CHATS - WITH TOKEN SUPPORT
+        // Fetches real display name from Auth Service for each chat partner
         // ================================================================
         public async Task<IEnumerable<RecentChatDto>> GetRecentChatsAsync(int userId, string token = null)
         {
@@ -261,7 +295,6 @@ namespace ConnectHub.Messaging.Services
             
             using var httpClient = _httpClientFactory.CreateClient();
             
-            // Add token to headers if provided
             if (!string.IsNullOrEmpty(token))
             {
                 httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
@@ -356,7 +389,7 @@ namespace ConnectHub.Messaging.Services
     {
         public int Id { get; set; }
         public string Username { get; set; }
-        public string DisplayName { get; set; }  
+        public string DisplayName { get; set; }
         public string Email { get; set; }
         public string? AvatarUrl { get; set; }
     }
