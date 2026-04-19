@@ -71,8 +71,20 @@ namespace ConnectHub.Room.Repositories
         // MEMBER OPERATIONS
         // ================================================================
         
+        // ✅ FIXED: Handle duplicate key on rejoin
         public async Task<RoomMember> AddMemberAsync(RoomMember member)
         {
+            var existing = await _context.RoomMembers
+                .FirstOrDefaultAsync(rm => rm.RoomId == member.RoomId && rm.UserId == member.UserId);
+            
+            if (existing != null)
+            {
+                // Record exists — reactivate via SQL
+                await _context.Database.ExecuteSqlInterpolatedAsync(
+                    $"UPDATE \"RoomMembers\" SET \"IsActive\" = true, \"JoinedAt\" = NOW(), \"Role\" = {member.Role} WHERE \"RoomId\" = {member.RoomId} AND \"UserId\" = {member.UserId}");
+                return member;
+            }
+            
             _context.RoomMembers.Add(member);
             await _context.SaveChangesAsync();
             return member;
@@ -81,6 +93,7 @@ namespace ConnectHub.Room.Repositories
         public async Task<RoomMember?> GetMemberAsync(int roomId, int userId)
         {
             return await _context.RoomMembers
+                .AsNoTracking()
                 .FirstOrDefaultAsync(rm => rm.RoomId == roomId && rm.UserId == userId);
         }
         
@@ -92,19 +105,17 @@ namespace ConnectHub.Room.Repositories
         }
         
         // ================================================================
-        // REACTIVATE MEMBER - COMPLETE FIX with exist check
+        // REACTIVATE MEMBER
         // ================================================================
         public async Task<bool> ReactivateMemberAsync(int roomId, int userId)
         {
             try
             {
-                // First check if record exists
                 var exists = await _context.RoomMembers
                     .AnyAsync(rm => rm.RoomId == roomId && rm.UserId == userId);
                 
                 if (!exists)
                 {
-                    // Record doesn't exist, create new
                     var member = new RoomMember
                     {
                         RoomId = roomId,
@@ -118,7 +129,6 @@ namespace ConnectHub.Room.Repositories
                     return true;
                 }
                 
-                // Record exists, update using direct SQL
                 var rowsAffected = await _context.Database.ExecuteSqlInterpolatedAsync(
                     $"UPDATE \"RoomMembers\" SET \"IsActive\" = true, \"JoinedAt\" = NOW() WHERE \"RoomId\" = {roomId} AND \"UserId\" = {userId}");
                 
