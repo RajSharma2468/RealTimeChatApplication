@@ -8,9 +8,9 @@ namespace ConnectHub.Messaging.Services
         Task<MessageResponseDto> SendDirectMessageAsync(int senderId, SendMessageDto dto, string senderName = null);
         Task<MessageResponseDto> SendRoomMessageAsync(int senderId, SendRoomMessageDto dto, string senderName = null);
         
-        // Get messages
-        Task<IEnumerable<MessageResponseDto>> GetDirectMessagesAsync(int userId1, int userId2, int page, int pageSize);
-        Task<IEnumerable<MessageResponseDto>> GetRoomMessagesAsync(int roomId, int page, int pageSize);
+        // Get messages - token added for Auth Service calls
+        Task<IEnumerable<MessageResponseDto>> GetDirectMessagesAsync(int userId1, int userId2, int page, int pageSize, string token = null);
+        Task<IEnumerable<MessageResponseDto>> GetRoomMessagesAsync(int roomId, int page, int pageSize, string token = null);
         Task<IEnumerable<SearchMessageDto>> SearchMessagesAsync(int userId, string keyword, int? roomId = null);
         
         // Message actions
@@ -22,7 +22,7 @@ namespace ConnectHub.Messaging.Services
         Task<bool> MarkAsReadAsync(int userId, int messageId);
         Task<bool> MarkAllAsReadAsync(int userId, int? senderId = null);
         
-        // Recent chats - ADD token parameter
+        // Recent chats
         Task<IEnumerable<RecentChatDto>> GetRecentChatsAsync(int userId, string token = null);
     }
 }

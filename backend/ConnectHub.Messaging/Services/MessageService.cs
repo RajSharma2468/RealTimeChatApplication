@@ -18,7 +18,7 @@ namespace ConnectHub.Messaging.Services
         
         // ================================================================
         // HELPER: Get real user name from Auth Service
-        // Caches nothing — called per-request only
+        // Token passed for server-to-server authenticated call
         // ================================================================
         private async Task<string> GetUserNameFromAuth(int userId, string token = null)
         {
@@ -113,10 +113,9 @@ namespace ConnectHub.Messaging.Services
         
         // ================================================================
         // GET DIRECT MESSAGES
-        // Fetches real sender name from Auth Service for each unique sender
-        // Uses a local cache to avoid duplicate Auth calls per request
+        // Token passed from controller for Auth Service calls
         // ================================================================
-        public async Task<IEnumerable<MessageResponseDto>> GetDirectMessagesAsync(int userId1, int userId2, int page, int pageSize)
+        public async Task<IEnumerable<MessageResponseDto>> GetDirectMessagesAsync(int userId1, int userId2, int page, int pageSize, string token = null)
         {
             var messages = await _messageRepository.GetDirectMessagesAsync(userId1, userId2, page, pageSize);
             
@@ -127,15 +126,14 @@ namespace ConnectHub.Messaging.Services
                 !(m.IsDeletedForReceiver && m.ReceiverId == userId2)
             ).ToList();
 
-            // Cache names to avoid multiple Auth calls for same user
             var userNameCache = new Dictionary<int, string>();
-
             var result = new List<MessageResponseDto>();
+            
             foreach (var m in filteredMessages)
             {
                 if (!userNameCache.ContainsKey(m.SenderId))
                 {
-                    userNameCache[m.SenderId] = await GetUserNameFromAuth(m.SenderId);
+                    userNameCache[m.SenderId] = await GetUserNameFromAuth(m.SenderId, token);
                 }
                 m.SenderName = userNameCache[m.SenderId];
                 result.Add(MapToResponseDto(m));
@@ -146,22 +144,21 @@ namespace ConnectHub.Messaging.Services
         
         // ================================================================
         // GET ROOM MESSAGES
-        // Fetches real sender name from Auth Service for each unique sender
+        // Token passed from controller for Auth Service calls
         // ================================================================
-        public async Task<IEnumerable<MessageResponseDto>> GetRoomMessagesAsync(int roomId, int page, int pageSize)
+        public async Task<IEnumerable<MessageResponseDto>> GetRoomMessagesAsync(int roomId, int page, int pageSize, string token = null)
         {
             var messages = await _messageRepository.GetRoomMessagesAsync(roomId, page, pageSize);
             var filteredMessages = messages.Where(m => !m.IsDeleted).ToList();
 
-            // Cache names to avoid multiple Auth calls for same user
             var userNameCache = new Dictionary<int, string>();
-
             var result = new List<MessageResponseDto>();
+            
             foreach (var m in filteredMessages)
             {
                 if (!userNameCache.ContainsKey(m.SenderId))
                 {
-                    userNameCache[m.SenderId] = await GetUserNameFromAuth(m.SenderId);
+                    userNameCache[m.SenderId] = await GetUserNameFromAuth(m.SenderId, token);
                 }
                 m.SenderName = userNameCache[m.SenderId];
                 result.Add(MapToResponseDto(m));
@@ -199,8 +196,6 @@ namespace ConnectHub.Messaging.Services
         // ================================================================
         public async Task<bool> DeleteMessageAsync(int userId, DeleteMessageDto dto)
         {
-            Console.WriteLine($"DeleteMessageAsync: userId={userId}, messageId={dto.MessageId}, deleteType={dto.DeleteType}");
-            
             var message = await _messageRepository.GetByIdAsync(dto.MessageId);
             
             if (message == null)
@@ -217,19 +212,16 @@ namespace ConnectHub.Messaging.Services
                 message.IsDeleted = true;
                 message.Content = "[Message deleted]";
                 await _messageRepository.UpdateAsync(message);
-                Console.WriteLine($"Message {dto.MessageId} deleted for everyone");
             }
-            else // FOR_ME
+            else
             {
                 if (isSender)
                 {
                     message.IsDeletedForSender = true;
-                    Console.WriteLine($"Message {dto.MessageId} deleted for sender {userId}");
                 }
                 else if (isReceiver)
                 {
                     message.IsDeletedForReceiver = true;
-                    Console.WriteLine($"Message {dto.MessageId} deleted for receiver {userId}");
                 }
                 else
                 {
@@ -285,8 +277,7 @@ namespace ConnectHub.Messaging.Services
         }
         
         // ================================================================
-        // GET RECENT CHATS - WITH TOKEN SUPPORT
-        // Fetches real display name from Auth Service for each chat partner
+        // GET RECENT CHATS
         // ================================================================
         public async Task<IEnumerable<RecentChatDto>> GetRecentChatsAsync(int userId, string token = null)
         {
@@ -376,9 +367,6 @@ namespace ConnectHub.Messaging.Services
         }
     }
     
-    // ================================================================
-    // AUTH SERVICE RESPONSE DTO
-    // ================================================================
     public class AuthUserResponse
     {
         public bool Success { get; set; }

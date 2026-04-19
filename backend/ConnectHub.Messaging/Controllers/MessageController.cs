@@ -23,9 +23,15 @@ namespace ConnectHub.Messaging.Controllers
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             return string.IsNullOrEmpty(userIdClaim) ? 0 : int.Parse(userIdClaim);
         }
+
+        private string GetToken()
+        {
+            var authHeader = Request.Headers["Authorization"].ToString();
+            return authHeader.StartsWith("Bearer ") ? authHeader.Substring(7) : authHeader;
+        }
         
         // ================================================================
-        // SEND DIRECT MESSAGE - Supports /direct and /send
+        // SEND DIRECT MESSAGE
         // ================================================================
         [HttpPost("direct")]
         [HttpPost("send")]
@@ -47,7 +53,7 @@ namespace ConnectHub.Messaging.Controllers
         }
         
         // ================================================================
-        // SEND ROOM MESSAGE - Supports /room and /room/send
+        // SEND ROOM MESSAGE
         // ================================================================
         [HttpPost("room")]
         [HttpPost("room/send")]
@@ -69,7 +75,7 @@ namespace ConnectHub.Messaging.Controllers
         }
         
         // ================================================================
-        // GET RECENT CHATS - WITH TOKEN FOR AUTH SERVICE
+        // GET RECENT CHATS
         // ================================================================
         [HttpGet("recent-chats")]
         public async Task<IActionResult> GetRecentChats()
@@ -80,10 +86,7 @@ namespace ConnectHub.Messaging.Controllers
                 if (userId == 0)
                     return Unauthorized(new { success = false, message = "User not authenticated" });
                 
-                // Extract token from Authorization header
-                var authHeader = Request.Headers["Authorization"].ToString();
-                var token = authHeader.StartsWith("Bearer ") ? authHeader.Substring(7) : authHeader;
-                
+                var token = GetToken();
                 var recentChats = await _messageService.GetRecentChatsAsync(userId, token);
                 return Ok(new { success = true, data = recentChats });
             }
@@ -94,7 +97,7 @@ namespace ConnectHub.Messaging.Controllers
         }
         
         // ================================================================
-        // GET DIRECT MESSAGES BETWEEN TWO USERS
+        // GET DIRECT MESSAGES - WITH TOKEN
         // ================================================================
         [HttpGet("direct/{userId}")]
         public async Task<IActionResult> GetDirectMessages(int userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
@@ -105,7 +108,8 @@ namespace ConnectHub.Messaging.Controllers
                 if (currentUserId == 0)
                     return Unauthorized(new { success = false, message = "User not authenticated" });
                 
-                var messages = await _messageService.GetDirectMessagesAsync(currentUserId, userId, page, pageSize);
+                var token = GetToken();
+                var messages = await _messageService.GetDirectMessagesAsync(currentUserId, userId, page, pageSize, token);
                 return Ok(new { success = true, data = messages });
             }
             catch (Exception ex)
@@ -115,7 +119,7 @@ namespace ConnectHub.Messaging.Controllers
         }
         
         // ================================================================
-        // GET ROOM MESSAGES
+        // GET ROOM MESSAGES - WITH TOKEN
         // ================================================================
         [HttpGet("room/{roomId}")]
         public async Task<IActionResult> GetRoomMessages(int roomId, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
@@ -126,7 +130,8 @@ namespace ConnectHub.Messaging.Controllers
                 if (userId == 0)
                     return Unauthorized(new { success = false, message = "User not authenticated" });
                 
-                var messages = await _messageService.GetRoomMessagesAsync(roomId, page, pageSize);
+                var token = GetToken();
+                var messages = await _messageService.GetRoomMessagesAsync(roomId, page, pageSize, token);
                 return Ok(new { success = true, data = messages });
             }
             catch (Exception ex)
@@ -136,7 +141,7 @@ namespace ConnectHub.Messaging.Controllers
         }
         
         // ================================================================
-        // EDIT MESSAGE - POST endpoint
+        // EDIT MESSAGE - POST
         // ================================================================
         [HttpPost("edit")]
         public async Task<IActionResult> EditMessagePost([FromBody] EditMessageDto dto)
@@ -163,7 +168,7 @@ namespace ConnectHub.Messaging.Controllers
         }
         
         // ================================================================
-        // EDIT MESSAGE - PUT endpoint
+        // EDIT MESSAGE - PUT
         // ================================================================
         [HttpPut("{id}")]
         public async Task<IActionResult> EditMessagePut(int id, [FromBody] EditMessageDto dto)
@@ -189,7 +194,7 @@ namespace ConnectHub.Messaging.Controllers
         }
         
         // ================================================================
-        // DELETE MESSAGE - Supports both path and query parameter
+        // DELETE MESSAGE
         // ================================================================
         [HttpDelete("{id}")]
         [HttpDelete("delete")]
@@ -252,7 +257,7 @@ namespace ConnectHub.Messaging.Controllers
         }
         
         // ================================================================
-        // MARK MESSAGE AS READ - Supports both POST and PUT
+        // MARK AS READ
         // ================================================================
         [HttpPost("read/{messageId}")]
         [HttpPut("read/{messageId}")]
