@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ConnectHub.Room")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a04cc6b5cda72c4481abf4c18fe668e03635c143")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1bdcda108c6fd9318d49a5e1443659c53152ea5c")]
 [assembly: System.Reflection.AssemblyProductAttribute("ConnectHub.Room")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ConnectHub.Room")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
